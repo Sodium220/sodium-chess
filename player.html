@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <title>Player Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1a1a2e; color: white; padding: 20px; text-align: center; }
+        .match-card { background: #e94560; padding: 20px; margin: 15px auto; border-radius: 12px; max-width: 400px; }
+        button { background: #24a0ed; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2 id="welcome">স্বাগতম</h2>
+    <div id="my-matches">খোঁজা হচ্ছে...</div>
+    <button onclick="window.location.href='index.html'" style="background:#555; margin-top:20px">Log Out</button>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const playerName = localStorage.getItem("playerName");
+    document.getElementById('welcome').innerText = "হ্যালো, " + playerName;
+
+    db.ref('matches').on('value', snap => {
+        const data = snap.val();
+        const display = document.getElementById('my-matches');
+        display.innerHTML = "";
+        if(!data) return display.innerHTML = "কোনো ম্যাচ নেই।";
+        Object.keys(data).forEach(id => {
+            const m = data[id];
+            if(m.p1 === playerName || m.p2 === playerName) {
+                const opp = (m.p1 === playerName) ? m.p2 : m.p1;
+                display.innerHTML += `<div class="match-card">
+                    <p>প্রতিপক্ষ: <b>${opp}</b></p>
+                    <button onclick="window.location.href='game.html?id=${id}'">Start Game</button>
+                </div>`;
+            }
+        });
+    });
+</script>
+</body>
+</html>
