@@ -2,7 +2,7 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Professional Chess Match</title>
+    <title>Fixed Chess Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
@@ -10,33 +10,37 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0f3460; color: white; text-align: center; font-family: 'Segoe UI', sans-serif; }
-        #board { width: 90vw; max-width: 400px; margin: 20px auto; border: 5px solid #16213e; border-radius: 5px; }
+        body { background: #0f3460; color: white; text-align: center; font-family: sans-serif; }
+        #board { width: 400px; margin: 20px auto; border-radius: 8px; border: 5px solid #16213e; }
         .clocks { display: flex; justify-content: center; gap: 20px; margin-bottom: 10px; }
         .clock { background: #16213e; padding: 10px; border-radius: 5px; font-size: 20px; width: 120px; border: 2px solid transparent; }
         .active-clock { border-color: #e94560; box-shadow: 0 0 10px #e94560; }
-        .highlight-sq { box-shadow: inset 0 0 3px 3px rgba(255, 255, 0, 0.7); }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-        .modal { background: #1a1a2e; padding: 25px; border-radius: 15px; border: 2px solid #e94560; }
-        button { padding: 12px 25px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .modal { background: #1a1a2e; padding: 30px; border-radius: 15px; border: 2px solid #e94560; max-width: 300px; }
         .hidden { display: none !important; }
+        button { padding: 10px 20px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 5px; font-weight: bold; margin-top: 15px;}
     </style>
 </head>
 <body>
 
+    <div id="end-screen" class="overlay hidden">
+        <div class="modal">
+            <h2 id="end-title">Game Over</h2>
+            <p id="end-reason"></p>
+            <button onclick="window.history.back()">Back to Lobby</button>
+        </div>
+    </div>
+
     <div id="setup-screen" class="overlay">
         <div class="modal">
-            <h2 id="setup-title">ম্যাচ সেটআপ</h2>
+            <h2>Match Setup</h2>
             <div id="admin-controls" class="hidden">
-                <p>গেম মোড সিলেক্ট করুন:</p>
                 <button onclick="setMode(60)">Bullet (1m)</button>
                 <button onclick="setMode(180)">Blitz (3m)</button>
                 <button onclick="setMode(600)">Rapid (10m)</button>
             </div>
-            <div id="player-controls">
-                <p id="waiting-msg">অ্যাডমিন মোড সিলেক্ট করার জন্য অপেক্ষা করছে...</p>
-                <button id="ready-btn" class="hidden" onclick="playerReady()">আমি প্রস্তুত (Start Game)</button>
-            </div>
+            <p id="waiting-msg">Waiting for admin and players...</p>
+            <button id="ready-btn" class="hidden" onclick="playerReady()">Ready</button>
         </div>
     </div>
 
@@ -44,12 +48,10 @@
         <div id="clock-w" class="clock">White: --:--</div>
         <div id="clock-b" class="clock">Black: --:--</div>
     </div>
-
-    <h3 id="status">প্লেয়ার কানেক্ট হচ্ছে...</h3>
+    <h3 id="status">Connecting...</h3>
     <div id="board"></div>
 
 <script>
-    // Firebase Config (আগেরটাই ব্যবহার করবেন)
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
@@ -61,104 +63,94 @@
 
     let board = null;
     let game = new Chess();
-    let myColor = null; // 'w' or 'b'
-    let matchRef = db.ref('matches/' + matchId);
-    let liveRef = db.ref('live_matches/' + matchId);
+    let myColor = null; 
+    let gameEnded = false;
+    const liveRef = db.ref('live_matches/' + matchId);
 
-    // ১. অ্যাডমিন মোড সেট করবে
     function setMode(sec) {
-        liveRef.update({ timeLimit: sec, timeLeftW: sec, timeLeftB: sec, modeSet: true });
+        liveRef.update({ timeLimit: sec, timeLeftW: sec, timeLeftB: sec, modeSet: true, status: 'playing' });
     }
 
-    // ২. প্লেয়ার রেডি দিবে
     function playerReady() {
         if (myColor === 'w') liveRef.update({ p1Ready: true });
         if (myColor === 'b') liveRef.update({ p2Ready: true });
-        document.getElementById('ready-btn').disabled = true;
-        document.getElementById('ready-btn').innerText = "অপেক্ষা করুন...";
+        document.getElementById('ready-btn').style.display = 'none';
     }
 
-    // ৩. বোর্ড মুভ কন্ট্রোল (ব্যাবহারকারী নিজের গুটি ছাড়া অন্য কিছু চালতে পারবে না)
     function onDragStart (source, piece) {
-        if (game.game_over()) return false;
-        
-        // অ্যাডমিন শুধু দেখবে, চালতে পারবে না
-        if (myRole === 'admin') return false;
-
-        // নিজের কালার ছাড়া চাল দেওয়া যাবে না
-        if ((myColor === 'w' && piece.search(/^b/) !== -1) ||
-            (myColor === 'b' && piece.search(/^w/) !== -1)) return false;
-
-        // যার চাল সে ছাড়া অন্য কেউ চালতে পারবে না
-        if ((game.turn() === 'w' && myColor !== 'w') ||
-            (game.turn() === 'b' && myColor !== 'b')) return false;
+        if (gameEnded || game.game_over() || myRole === 'admin') return false;
+        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
+        if ((game.turn() === 'w' && myColor !== 'w') || (game.turn() === 'b' && myColor !== 'b')) return false;
     }
 
     function onDrop (source, target) {
         let move = game.move({ from: source, to: target, promotion: 'q' });
         if (move === null) return 'snapback';
         
-        liveRef.update({ 
-            fen: game.fen(), 
-            lastMoveTime: Date.now(),
-            turn: game.turn() 
-        });
+        liveRef.update({ fen: game.fen(), turn: game.turn() });
+        checkGameState();
     }
 
-    // ৪. গুটি সাজেশন (Highlight legal moves)
-    function onMouseoverSquare (square) {
-        let moves = game.moves({ square: square, verbose: true });
-        if (moves.length === 0) return;
-        $('#board .square-' + square).addClass('highlight-sq');
-        moves.forEach(m => $('#board .square-' + m.to).addClass('highlight-sq'));
-    }
-
-    function onMouseoutSquare () {
-        $('#board [class*="square-"]').removeClass('highlight-sq');
-    }
-
-    // ৫. সিঙ্ক্রোনাইজেশন
-    matchRef.once('value', snap => {
-        const m = snap.val();
-        if (m.p1 === myName) myColor = 'w';
-        else if (m.p2 === myName) myColor = 'b';
-
-        // অ্যাডমিন হলে কন্ট্রোল প্যানেল দেখাও
-        if (myRole === 'admin') {
-            document.getElementById('admin-controls').classList.remove('hidden');
-            document.getElementById('player-controls').classList.add('hidden');
+    function checkGameState() {
+        if (game.in_checkmate()) {
+            let winner = game.turn() === 'w' ? "Black" : "White";
+            liveRef.update({ status: 'ended', winner: winner, reason: 'Checkmate' });
+        } else if (game.in_draw() || game.in_stalemate()) {
+            liveRef.update({ status: 'ended', winner: 'Draw', reason: 'Draw/Stalemate' });
         }
+    }
 
-        // বোর্ড ইনিশিয়ালাইজ (Orientation সেট করা)
-        board = Chessboard('board', {
-            draggable: true,
-            position: 'start',
-            orientation: (myColor === 'b') ? 'black' : 'white', // ব্ল্যাক প্লেয়ারের জন্য উল্টো বোর্ড
-            onDragStart: onDragStart,
-            onDrop: onDrop,
-            onMouseoverSquare: onMouseoverSquare,
-            onMouseoutSquare: onMouseoutSquare,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-        });
-    });
+    function startTimer() {
+        if (window.timerId) return;
+        window.timerId = setInterval(() => {
+            if (gameEnded) return;
+            liveRef.once('value', snap => {
+                let d = snap.val();
+                if (!d || d.status !== 'playing') return;
+
+                if (game.turn() === 'w') {
+                    let t = d.timeLeftW - 1;
+                    if (t <= 0) endGame("Black", "Time Expired");
+                    else if (myColor === 'w') liveRef.update({ timeLeftW: t });
+                } else {
+                    let t = d.timeLeftB - 1;
+                    if (t <= 0) endGame("White", "Time Expired");
+                    else if (myColor === 'b') liveRef.update({ timeLeftB: t });
+                }
+            });
+        }, 1000);
+    }
+
+    function endGame(winner, reason) {
+        if (gameEnded) return;
+        liveRef.update({ status: 'ended', winner: winner, reason: reason });
+    }
 
     liveRef.on('value', snap => {
         const data = snap.val();
         if (!data) return;
 
-        // মোড সেট হলে প্লেয়ারকে রেডি বাটন দেখাও
-        if (data.modeSet && myRole !== 'admin') {
-            document.getElementById('waiting-msg').innerText = "মোড সেট হয়েছে: " + (data.timeLimit/60) + " মিনিট";
-            document.getElementById('ready-btn').classList.remove('hidden');
+        // গেম শেষ চেক
+        if (data.status === 'ended') {
+            gameEnded = true;
+            document.getElementById('end-screen').classList.remove('hidden');
+            document.getElementById('end-title').innerText = data.winner === 'Draw' ? "Match Draw!" : data.winner + " Wins!";
+            document.getElementById('end-reason').innerText = "Reason: " + data.reason;
+            clearInterval(window.timerId);
+            return;
         }
 
-        // দুজনেই রেডি হলে খেলা শুরু
+        if (data.modeSet && myRole !== 'admin') {
+            document.getElementById('waiting-msg').innerText = "Mode: " + (data.timeLimit/60) + "m";
+            document.getElementById('ready-btn').classList.remove('hidden');
+        } else if (myRole === 'admin' && !data.modeSet) {
+            document.getElementById('admin-controls').classList.remove('hidden');
+        }
+
         if (data.p1Ready && data.p2Ready) {
             document.getElementById('setup-screen').classList.add('hidden');
-            if (!window.timerStarted) { 
-                startTimer(); 
-                window.timerStarted = true;
-            }
+            startTimer();
         }
 
         if (data.fen) {
@@ -168,26 +160,10 @@
 
         document.getElementById('clock-w').innerText = "White: " + formatTime(data.timeLeftW || 0);
         document.getElementById('clock-b').innerText = "Black: " + formatTime(data.timeLeftB || 0);
-        
-        updateStatus();
+        document.getElementById('clock-w').className = game.turn() === 'w' ? "clock active-clock" : "clock";
+        document.getElementById('clock-b').className = game.turn() === 'b' ? "clock active-clock" : "clock";
+        document.getElementById('status').innerText = game.turn() === 'w' ? "White's Turn" : "Black's Turn";
     });
-
-    function startTimer() {
-        setInterval(() => {
-            liveRef.once('value', snap => {
-                let d = snap.val();
-                if (!d || game.game_over()) return;
-                
-                if (game.turn() === 'w') {
-                    let t = (d.timeLeftW || d.timeLimit) - 1;
-                    if (myColor === 'w') liveRef.update({ timeLeftW: t });
-                } else {
-                    let t = (d.timeLeftB || d.timeLimit) - 1;
-                    if (myColor === 'b') liveRef.update({ timeLeftB: t });
-                }
-            });
-        }, 1000);
-    }
 
     function formatTime(s) {
         let m = Math.floor(s / 60);
@@ -195,11 +171,19 @@
         return (m < 10 ? "0" : "") + m + ":" + (sec < 10 ? "0" : "") + sec;
     }
 
-    function updateStatus() {
-        let s = game.turn() === 'w' ? "White's Turn" : "Black's Turn";
-        if (game.in_check()) s += " (CHECK!)";
-        document.getElementById('status').innerText = s;
-    }
+    // বোর্ড ইনিশিয়ালাইজেশন
+    db.ref('matches/' + matchId).once('value', snap => {
+        const m = snap.val();
+        if (m.p1 === myName) myColor = 'w'; else if (m.p2 === myName) myColor = 'b';
+        board = Chessboard('board', {
+            draggable: true,
+            position: 'start',
+            orientation: (myColor === 'b') ? 'black' : 'white',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        });
+    });
 </script>
 </body>
 </html>
