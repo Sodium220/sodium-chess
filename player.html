@@ -2,7 +2,7 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Player Dashboard - Sodium Chess</title>
+    <title>Player Dashboard - Sodium</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -10,53 +10,58 @@
         :root { --primary: #00d2ff; --bg: #050a12; --card: #101926; }
         body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
         
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 40px; }
-        .grid-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 30px auto; max-width: 900px; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: var(--card); border-radius: 15px; margin-bottom: 30px; }
         
-        .stat-card { background: var(--card); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #222; transition: 0.3s; }
-        .stat-card:hover { transform: translateY(-5px); border-color: var(--primary); }
-        .stat-card i { font-size: 30px; color: var(--primary); margin-bottom: 10px; }
-        .stat-card h2 { margin: 5px 0; font-size: 28px; }
-        
-        .bracket-container { background: rgba(16, 25, 38, 0.5); padding: 30px; border-radius: 20px; margin-top: 40px; overflow-x: auto; }
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; max-width: 1000px; margin: 0 auto 40px; }
+        .stat-card { background: var(--card); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #1e2d41; transition: 0.3s; }
+        .stat-card:hover { transform: translateY(-10px); border-color: var(--primary); }
+        .stat-card i { font-size: 35px; color: var(--primary); margin-bottom: 15px; }
+        .stat-card h2 { font-size: 32px; margin: 0; }
+        .stat-label { color: #8a99af; font-size: 14px; text-transform: uppercase; margin-top: 5px; }
+
+        .bracket-view { background: rgba(16,25,38,0.8); padding: 40px; border-radius: 20px; overflow-x: auto; border: 1px solid #1e2d41; }
         .bracket-wrapper { display: flex; gap: 50px; }
-        .round-col { display: flex; flex-direction: column; justify-content: space-around; min-width: 180px; }
-        .match-card { background: #1a2433; padding: 10px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; }
-        .p-view { padding: 8px; font-size: 14px; border-bottom: 1px solid #222; }
-        .p-view:last-child { border-bottom: none; }
-        
-        .win { color: #2ed573; font-weight: bold; }
-        .lose { text-decoration: line-through; color: #555; }
+        .round-col { display: flex; flex-direction: column; justify-content: space-around; min-width: 200px; }
+        .m-box { background: #1c2c3e; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #34495e; }
+        .p-name { padding: 5px 0; border-bottom: 1px solid #2a3a4d; font-size: 15px; }
+        .p-name:last-child { border-bottom: none; }
+
+        .win-status { color: #2ed573; font-weight: bold; }
+        .lose-status { text-decoration: line-through; color: #5d6d7e; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>Welcome, <span id="pName" style="color: var(--primary);">...</span></h1>
-    <button onclick="logout()" style="background:red; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Logout</button>
+    <div>
+        <h1 style="margin:0;">Dashboard</h1>
+        <p style="margin:0; color:var(--primary);">Welcome back, <span id="displayUser">...</span></p>
+    </div>
+    <button onclick="logout()" style="background:#ff4757; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;">Logout</button>
 </div>
 
-<div class="grid-stats">
+<div class="stats-row">
     <div class="stat-card">
-        <i class="fas fa-gamepad"></i>
-        <p>Total Matches</p>
+        <i class="fas fa-play-circle"></i>
         <h2 id="totalM">0</h2>
+        <div class="stat-label">Total Matches</div>
     </div>
     <div class="stat-card">
-        <i class="fas fa-trophy"></i>
-        <p>Wins</p>
-        <h2 id="wins" style="color: #2ed573;">0</h2>
+        <i class="fas fa-medal" style="color: #ffca28;"></i>
+        <h2 id="wins">0</h2>
+        <div class="stat-label">Wins</div>
     </div>
     <div class="stat-card">
-        <i class="fas fa-times-circle"></i>
-        <p>Losses</p>
-        <h2 id="losses" style="color: #ff4757;">0</h2>
+        <i class="fas fa-skull" style="color: #ff4757;"></i>
+        <h2 id="losses">0</h2>
+        <div class="stat-label">Losses</div>
     </div>
 </div>
 
-<div class="bracket-container">
-    <h2 style="text-align: center; color: var(--primary);"><i class="fas fa-sitemap"></i> Tournament Bracket</h2>
-    <div class="bracket-wrapper" id="bracket-root"></div>
+<div class="bracket-view">
+    <h2 style="text-align:center; margin-bottom:30px;"><i class="fas fa-sitemap"></i> Live Tournament Bracket</h2>
+    <div class="bracket-wrapper" id="player-bracket">
+        </div>
 </div>
 
 <script>
@@ -64,33 +69,33 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    const user = localStorage.getItem("username");
-    if(!user) location.href = 'index.html';
-    document.getElementById('pName').innerText = user;
+    const me = localStorage.getItem("username");
+    if(!me) location.href = 'index.html';
+    document.getElementById('displayUser').innerText = me;
 
-    // Load Stats
-    db.ref('users/'+user+'/stats').on('value', snap => {
-        const s = snap.val() || {wins:0, total:0};
+    // 1. Fetch Stats
+    db.ref('users/' + me + '/stats').on('value', snap => {
+        const s = snap.val() || {wins: 0, total: 0};
         document.getElementById('wins').innerText = s.wins;
         document.getElementById('totalM').innerText = s.total;
         document.getElementById('losses').innerText = s.total - s.wins;
     });
 
-    // Load Bracket
+    // 2. Fetch Bracket
     db.ref('tournament_tree').on('value', snap => {
-        const root = document.getElementById('bracket-root');
+        const root = document.getElementById('player-bracket');
         root.innerHTML = "";
         const data = snap.val();
-        if(!data) return root.innerHTML = "<p style='text-align:center; width:100%'>No tournament live.</p>";
+        if(!data) return root.innerHTML = "<p style='width:100%; text-align:center;'>Tournament hasn't started yet.</p>";
 
         data.forEach(round => {
             const col = document.createElement('div');
             col.className = 'round-col';
             round.forEach(m => {
                 col.innerHTML += `
-                <div class="match-card">
-                    <div class="p-view ${m.s1}">${m.p1 || "---"}</div>
-                    <div class="p-view ${m.s2}">${m.p2 || "---"}</div>
+                <div class="m-box">
+                    <div class="p-name ${m.s1}">${m.p1 || "---"}</div>
+                    <div class="p-name ${m.s2}">${m.p2 || "---"}</div>
                 </div>`;
             });
             root.appendChild(col);
