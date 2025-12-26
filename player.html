@@ -2,47 +2,60 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Player Dashboard</title>
+    <title>Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; }
-        .container { max-width: 800px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .stats-box { background: linear-gradient(135deg, #162a47, #0f213a); padding: 20px; border-radius: 12px; display: flex; justify-content: space-around; border: 1px solid #00d2ff; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .stat-item h2 { margin: 0; color: #00d2ff; font-size: 32px; }
-        .section-title { border-bottom: 2px solid #2a4a75; padding-bottom: 5px; margin-top: 30px; color: #00d2ff; }
+        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; margin:0; }
         
-        .card { background: #162a47; padding: 15px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-        .card:hover { transform: translateY(-3px); background: #1e3658; }
+        /* Stats Header */
+        .header { display: flex; justify-content: space-between; align-items: center; background: #162a47; padding: 15px 30px; border-bottom: 2px solid #00d2ff; }
+        .stats-badge { background: #0f213a; padding: 5px 15px; border-radius: 20px; border: 1px solid #2a4a75; margin-left: 10px; }
+
+        /* Tournament Tree Container */
+        .tree-container { display: flex; overflow-x: auto; padding: 20px 0; gap: 30px; min-height: 300px; }
+        .round-column { min-width: 250px; display: flex; flex-direction: column; gap: 20px; }
+        .round-title { text-align: center; color: #ffd32a; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
         
-        button { border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
-        .play-btn { background: #00d2ff; color: #0b1e36; }
-        .watch-btn { background: #2ed573; color: #0b1e36; }
-        
-        .leader-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #2a4a75; }
-        .rank { font-weight: bold; color: #ffd32a; width: 30px; }
+        /* Match Card Style */
+        .match-card { background: #162a47; padding: 15px; border-radius: 8px; border-left: 4px solid #2a4a75; position: relative; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .match-card:hover { transform: translateY(-3px); border-color: #00d2ff; }
+        .active-match { border-color: #2ed573; box-shadow: 0 0 10px rgba(46, 213, 115, 0.2); }
+        .p-name { font-size: 15px; font-weight: bold; display: flex; justify-content: space-between; }
+        .vs { text-align: center; font-size: 12px; color: #777; margin: 5px 0; }
+        .btn-play { width: 100%; margin-top: 10px; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .play { background: #00d2ff; color: #000; }
+        .watch { background: #2f3640; color: #fff; border: 1px solid #555; }
+
+        /* Leaderboard */
+        .leaderboard-sec { max-width: 800px; margin: 40px auto; background: #162a47; padding: 20px; border-radius: 10px; border: 1px solid #2a4a75; }
+        .lb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #2a4a75; align-items: center; }
+        .rank-num { width: 30px; font-weight: bold; }
+        .top-1 { color: #ffd32a; font-size: 1.2em; } /* Gold */
+        .top-2 { color: #dcdde1; font-size: 1.1em; } /* Silver */
+        .top-3 { color: #e1b12c; font-size: 1.1em; } /* Bronze */
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h2 id="userName">Loading...</h2>
-            <button onclick="localStorage.clear(); location.href='index.html'" style="background:#ff4757;">Logout</button>
+
+    <div class="header">
+        <div>
+            <h2 style="margin:0; display:inline;">Sodium Chess</h2>
+            <span class="stats-badge">Wins: <span id="myWins">0</span></span>
+        </div>
+        <div>
+            <span id="welcome">Loading...</span>
+            <button onclick="localStorage.clear(); location.href='index.html'" style="margin-left:15px; background:#ff4757; color:white; border:none; padding:5px 15px; border-radius:4px; cursor:pointer;">Logout</button>
+        </div>
+    </div>
+
+    <h3 style="margin: 20px 20px 5px 20px; color:#00d2ff;">Tournament Bracket (Live)</h3>
+    <div class="tree-container" id="bracket-root">
         </div>
 
-        <div class="stats-box">
-            <div class="stat-item"><h2 id="winCount">0</h2><p>Wins</p></div>
-            <div class="stat-item"><h2 id="totalCount">0</h2><p>Matches Played</p></div>
-        </div>
-
-        <h3 class="section-title">Current Tournament Matches</h3>
-        <div id="bracket"></div>
-
-        <h3 class="section-title">Top Players (Leaderboard)</h3>
-        <div id="leaderboard" style="background:#0f213a; padding:15px; border-radius:8px;">
-            <p>Loading ranking...</p>
-        </div>
+    <div class="leaderboard-sec">
+        <h3 style="text-align:center; margin-top:0; color:#ffd32a;">🏆 Champions Leaderboard</h3>
+        <div id="lb-list">Loading ranking...</div>
     </div>
 
 <script>
@@ -52,59 +65,81 @@
     const me = localStorage.getItem("username");
     
     if(!me) location.href = "index.html";
-    document.getElementById('userName').innerText = "Player: " + me;
+    document.getElementById('welcome').innerText = me;
 
-    // 1. My Stats
-    db.ref('users/' + me + '/stats').on('value', snap => {
-        const s = snap.val() || {wins:0, total:0};
-        document.getElementById('winCount').innerText = s.wins;
-        document.getElementById('totalCount').innerText = s.total;
+    // --- 1. Stats Logic ---
+    db.ref('users/'+me+'/stats').on('value', snap => {
+        const s = snap.val() || {wins:0};
+        document.getElementById('myWins').innerText = s.wins;
     });
 
-    // 2. Bracket System
+    // --- 2. Visual Bracket Logic ---
     db.ref('matches').on('value', snap => {
-        const b = document.getElementById('bracket');
-        b.innerHTML = "";
+        const root = document.getElementById('bracket-root');
+        root.innerHTML = "";
         const data = snap.val();
-        if(!data) return b.innerHTML = "<p>No active matches.</p>";
         
+        if(!data) { root.innerHTML = "<p style='padding:20px'>No active tournament.</p>"; return; }
+
+        // Group matches by Round
+        const rounds = {};
+        const order = ["Round 1", "Quarter Final", "Semi Final", "Final"]; // Display Order
+
         Object.keys(data).forEach(k => {
             const m = data[k];
-            const isMe = (m.p1 === me || m.p2 === me);
-            const badge = m.type === 'Squad' ? '<span style="background:#ff4757; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:5px;">SQUAD</span>' : '';
-            
-            b.innerHTML += `
-                <div class="card" style="border-left: 4px solid ${isMe ? '#00d2ff' : '#2ed573'}">
-                    <div>
-                        <span style="font-size:18px;">${m.p1} <span style="color:#777">vs</span> ${m.p2}</span>
-                        ${badge}
-                    </div>
-                    <button class="${isMe ? 'play-btn' : 'watch-btn'}" onclick="location.href='game.html?id=${k}'">
-                        ${isMe ? 'PLAY' : 'WATCH'}
-                    </button>
-                </div>`;
+            const rName = m.round || "Round 1";
+            if(!rounds[rName]) rounds[rName] = [];
+            rounds[rName].push({key: k, ...m});
+        });
+
+        // Render Columns
+        order.forEach(rName => {
+            if(rounds[rName]) {
+                let html = `<div class="round-column"><div class="round-title">${rName}</div>`;
+                
+                rounds[rName].forEach(m => {
+                    const isMe = (m.p1 === me || m.p2 === me);
+                    html += `
+                        <div class="match-card ${isMe ? 'active-match' : ''}">
+                            <div class="p-name">${m.p1}</div>
+                            <div class="vs">VS</div>
+                            <div class="p-name">${m.p2}</div>
+                            <button class="btn-play ${isMe ? 'play' : 'watch'}" onclick="location.href='game.html?id=${m.key}'">
+                                ${isMe ? '▶ PLAY MATCH' : '👁 WATCH'}
+                            </button>
+                        </div>`;
+                });
+                
+                html += `</div>`; // End column
+                root.innerHTML += html;
+            }
         });
     });
 
-    // 3. Leaderboard Logic
+    // --- 3. Leaderboard Logic (Top Wins) ---
     db.ref('users').on('value', snap => {
         const users = [];
-        snap.forEach(child => {
-            const u = child.val();
-            if(u.role !== 'admin') {
-                users.push({ name: u.u, wins: u.stats.wins || 0 });
-            }
+        snap.forEach(c => {
+            const u = c.val();
+            if(u.role !== 'admin') users.push({name: u.u, wins: u.stats.wins || 0});
         });
 
-        // Sort by Wins (High to Low)
-        users.sort((a, b) => b.wins - a.wins);
+        // Sort Highest Wins First
+        users.sort((a,b) => b.wins - a.wins);
 
-        const lb = document.getElementById('leaderboard');
-        lb.innerHTML = "";
-        users.slice(0, 5).forEach((u, index) => { // Top 5
-            lb.innerHTML += `
-                <div class="leader-row">
-                    <span><span class="rank">#${index+1}</span> ${u.name}</span>
+        const list = document.getElementById('lb-list');
+        list.innerHTML = "";
+        
+        users.slice(0, 10).forEach((u, i) => {
+            let rankClass = "";
+            let medal = "";
+            if(i===0) { rankClass="top-1"; medal="🥇"; }
+            else if(i===1) { rankClass="top-2"; medal="🥈"; }
+            else if(i===2) { rankClass="top-3"; medal="🥉"; }
+
+            list.innerHTML += `
+                <div class="lb-row">
+                    <span class="${rankClass}"><span class="rank-num">#${i+1}</span> ${medal} ${u.name}</span>
                     <span style="color:#00d2ff; font-weight:bold;">${u.wins} Wins</span>
                 </div>`;
         });
