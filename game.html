@@ -13,183 +13,165 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
-        :root { --bg: #050a12; --card: #162231; --primary: #00d2ff; --accent: #2ed573; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: manipulation; }
-        
-        .game-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 10px; box-sizing: border-box; }
-        
-        /* Board Styles */
-        #board { width: 95vw; max-width: 400px; border: 5px solid var(--card); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        
-        /* Highlight for Mobile Selection */
-        .highlight-sq { box-shadow: inset 0 0 4px 4px rgba(255, 255, 0, 0.8); background: rgba(255, 255, 0, 0.3) !important; }
-
-        /* Player Info Bars */
-        .player-bar { width: 100%; max-width: 400px; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: var(--card); margin: 5px 0; border-radius: 8px; box-sizing: border-box; }
-        .timer { font-family: monospace; font-size: 20px; font-weight: bold; color: var(--primary); }
-        .active-turn { border: 2px solid var(--primary); box-shadow: 0 0 10px rgba(0,210,255,0.3); }
-
-        /* Game Status Overlay */
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; display: none; }
-        .modal { background: var(--card); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid var(--primary); }
-        .btn-home { background: var(--primary); color: #000; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        :root { --bg: #050a12; --card: #162231; --primary: #00d2ff; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; touch-action: manipulation; }
+        .game-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 10px; }
+        #board { width: 95vw; max-width: 380px; border: 4px solid #2a3a4d; border-radius: 5px; }
+        .player-info { width: 100%; max-width: 380px; background: var(--card); padding: 12px; margin: 8px 0; border-radius: 8px; display: flex; justify-content: space-between; border: 1px solid #2a3a4d; }
+        .highlight-sq { box-shadow: inset 0 0 5px 5px rgba(255, 255, 0, 0.7); background: rgba(255, 255, 0, 0.2) !important; }
+        .turn-indicator { color: var(--primary); font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+        .active-player { border: 2px solid var(--primary); }
     </style>
 </head>
 <body>
 
-<div class="overlay" id="end-overlay">
-    <div class="modal">
-        <h1 id="win-status">Game Over</h1>
-        <p id="win-reason"></p>
-        <button class="btn-home" onclick="location.href='player.html'">Back to Dashboard</button>
-    </div>
-</div>
-
-<div class="game-container">
-    <div class="player-bar" id="bar-black">
-        <span id="name-black">Opponent</span>
-        <div class="timer" id="time-black">05:00</div>
+<div class="game-wrapper">
+    <div class="turn-indicator" id="status-text">Connecting to Match...</div>
+    
+    <div class="player-info" id="opp-box">
+        <span id="opp-name">Opponent</span>
+        <span id="opp-status">Wait...</span>
     </div>
 
     <div id="board"></div>
 
-    <div class="player-bar" id="bar-white">
-        <span id="name-white">You</span>
-        <div class="timer" id="time-white">05:00</div>
+    <div class="player-info" id="my-box">
+        <span id="my-name">You</span>
+        <span id="my-status">Ready</span>
     </div>
-    
-    <p id="status-msg" style="margin-top: 10px; color: #8a99af;">Syncing match...</p>
 </div>
 
 <script>
+    // ফায়ারবেস কনফিগ
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const mid = new URLSearchParams(window.location.search).get('id') || "demo_match";
-    const me = localStorage.getItem("username") || "Guest";
-    
+    // ইউআরএল থেকে ম্যাচ আইডি এবং প্লেয়ার নাম নেওয়া
+    const urlParams = new URLSearchParams(window.location.search);
+    const mid = urlParams.get('id'); 
+    const me = localStorage.getItem("username");
+
     let board = null;
     let game = new Chess();
     let myColor = 'w'; 
     let sourceSquare = null;
-    const gameRef = db.ref('live_matches/' + mid);
 
-    // ১. ক্লিক-টু-মুভ লজিক (মোবাইলের জন্য)
-    function onSquareClick(square) {
-        if (game.game_over()) return;
+    if (!mid) {
+        alert("Match ID not found!");
+        location.href = 'player.html';
+    }
 
-        // চেক করা হচ্ছে এটা প্লেয়ারের টার্ন কি না
-        if (game.turn() !== myColor) return;
+    // ১. ম্যাচ ডাটাবেস সেটআপ এবং কালার নির্ধারণ
+    const matchRef = db.ref('live_matches/' + mid);
 
-        // ১. গুটি সিলেক্ট করা
+    matchRef.once('value', snap => {
+        let data = snap.val();
+        
+        // যদি ডাটা না থাকে তবে নতুন ম্যাচ তৈরি
+        if (!data) {
+            data = { fen: 'start', turn: 'w', p1: me, p2: 'Waiting...' };
+            matchRef.set(data);
+        }
+
+        // কালার লজিক: প্রথম জন হোয়াইট (p1), দ্বিতীয় জন ব্ল্যাক (p2)
+        if (data.p1 === me) {
+            myColor = 'w';
+        } else if (data.p2 === me) {
+            myColor = 'b';
+        } else if (data.p2 === 'Waiting...') {
+            myColor = 'b';
+            matchRef.update({ p2: me }); // দ্বিতীয় জন জয়েন করলে নাম আপডেট
+        } else {
+            // দর্শক মোড
+            myColor = 's';
+            document.getElementById('status-text').innerText = "Spectating Mode";
+        }
+
+        document.getElementById('my-name').innerText = me + (myColor !== 's' ? ` (${myColor === 'w' ? 'White' : 'Black'})` : "");
+        initBoard();
+    });
+
+    // ২. বোর্ড এবং ক্লিক লজিক
+    function initBoard() {
+        let config = {
+            draggable: false, // মোবাইলে ক্লিক টু মুভ এর জন্য ড্র্যাগ বন্ধ
+            position: 'start',
+            orientation: myColor === 'b' ? 'black' : 'white',
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        };
+        board = Chessboard('board', config);
+
+        // ক্লিক ইভেন্ট
+        $('#board').on('click', '.square-55d6', function() {
+            if (myColor === 's') return; // দর্শক চাল দিতে পারবে না
+            let square = $(this).attr('data-square');
+            handleMove(square);
+        });
+
+        listenForMoves();
+    }
+
+    function handleMove(square) {
+        if (game.turn() !== myColor) return; // নিজের চাল না হলে কিছু হবে না
+
         if (sourceSquare === null) {
             let piece = game.get(square);
             if (piece && piece.color === myColor) {
                 sourceSquare = square;
-                removeHighlights();
-                highlightSquare(square);
+                $('.square-55d6').removeClass('highlight-sq');
+                $('.square-' + square).addClass('highlight-sq');
             }
-        } 
-        // ২. চাল দেওয়া
-        else {
-            let move = game.move({
-                from: sourceSquare,
-                to: square,
-                promotion: 'q'
-            });
-
+        } else {
+            let move = game.move({ from: sourceSquare, to: square, promotion: 'q' });
+            
             if (move === null) {
-                // যদি অন্য নিজের গুটিতে ক্লিক করে, তবে সেটা সিলেক্ট হবে
+                // ভুল চাল দিলে সিলেকশন চেঞ্জ
                 let piece = game.get(square);
                 if (piece && piece.color === myColor) {
                     sourceSquare = square;
-                    removeHighlights();
-                    highlightSquare(square);
-                } else {
-                    sourceSquare = null;
-                    removeHighlights();
+                    $('.square-55d6').removeClass('highlight-sq');
+                    $('.square-' + square).addClass('highlight-sq');
                 }
             } else {
-                // চাল সঠিক হলে ডাটাবেস আপডেট
+                // সঠিক চাল
                 board.position(game.fen());
+                $('.square-55d6').removeClass('highlight-sq');
                 sourceSquare = null;
-                removeHighlights();
-                gameRef.update({ fen: game.fen(), turn: game.turn() });
-                checkGameOver();
+                matchRef.update({ fen: game.fen(), turn: game.turn() });
             }
         }
     }
 
-    function highlightSquare(square) {
-        $('#board .square-' + square).addClass('highlight-sq');
-    }
+    // ৩. রিয়েল-টাইম সিঙ্ক
+    function listenForMoves() {
+        matchRef.on('value', snap => {
+            const data = snap.val();
+            if (!data) return;
 
-    function removeHighlights() {
-        $('#board [class*="square-"]').removeClass('highlight-sq');
-    }
+            if (data.fen === 'start') {
+                game.reset();
+                board.start();
+            } else {
+                game.load(data.fen);
+                board.position(data.fen);
+            }
 
-    // ২. বোর্ড ইনিশিয়ালাইজ
-    function initBoard(orientation) {
-        let config = {
-            draggable: false, // মোবাইলের জন্য ড্র্যাগ বন্ধ, শুধু ক্লিক চালু
-            position: 'start',
-            orientation: orientation,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-        };
-        board = Chessboard('board', config);
-        
-        // Chessboard.js-এ ক্লিক ইভেন্ট হ্যান্ডলার নেই, তাই jQuery দিয়ে অ্যাড করা হলো
-        $('#board').on('click', '.square-55d6', function() {
-            let square = $(this).attr('data-square');
-            onSquareClick(square);
+            // টার্ন আপডেট
+            let turn = data.turn;
+            document.getElementById('status-text').innerText = turn === myColor ? "YOUR TURN" : "Opponent's Turn";
+            document.getElementById('my-box').classList.toggle('active-player', turn === myColor);
+            document.getElementById('opp-box').classList.toggle('active-player', turn !== myColor);
+            
+            // অপোনেন্ট নাম আপডেট
+            document.getElementById('opp-name').innerText = (myColor === 'w' ? data.p2 : data.p1);
+
+            if (game.game_over()) {
+                document.getElementById('status-text').innerText = "GAME OVER!";
+                alert("Game Over!");
+            }
         });
     }
-
-    // ৩. ডাটাবেস সিঙ্ক
-    gameRef.on('value', snap => {
-        const data = snap.val();
-        if (!data) {
-            // যদি ম্যাচ নতুন হয় তবে ইনিশিয়ালাইজ করুন
-            gameRef.set({ fen: game.fen(), turn: 'w', p1: me, p2: 'Opponent' });
-            return;
-        }
-
-        // গেম স্টেট আপডেট
-        if (data.fen !== game.fen()) {
-            game.load(data.fen);
-            board.position(data.fen);
-        }
-
-        // টার্ন এবং হাইলাইট আপডেট
-        const turn = game.turn();
-        document.getElementById('bar-white').classList.toggle('active-turn', turn === 'w');
-        document.getElementById('bar-black').classList.toggle('active-turn', turn === 'b');
-        document.getElementById('status-msg').innerText = turn === myColor ? "Your Turn" : "Opponent is thinking...";
-
-        checkGameOver();
-    });
-
-    function checkGameOver() {
-        if (game.game_over()) {
-            document.getElementById('end-overlay').style.display = 'flex';
-            if (game.in_checkmate()) {
-                document.getElementById('win-status').innerText = "Checkmate!";
-                document.getElementById('win-reason').innerText = (game.turn() === 'w' ? "Black" : "White") + " Won the match.";
-            } else {
-                document.getElementById('win-status').innerText = "Draw!";
-                document.getElementById('win-reason').innerText = "The match ended in a draw.";
-            }
-        }
-    }
-
-    // ৪. স্টার্টআপ
-    $(document).ready(() => {
-        // এখানে আপনি ব্র্যাকেট থেকে প্লেয়ারের কালার চেক করতে পারেন
-        // উদাহরণস্বরূপ: p1 হলে হোয়াইট, p2 হলে ব্ল্যাক
-        initBoard('white'); 
-    });
-
 </script>
 </body>
 </html>
