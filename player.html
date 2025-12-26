@@ -36,14 +36,12 @@
     if(!me) location.href = "index.html";
     document.getElementById('userName').innerText = "হ্যালো, " + me;
 
-    // লোড স্ট্যাটাস
     db.ref('users/' + me + '/stats').on('value', snap => {
         const s = snap.val() || {wins:0, total:0};
         document.getElementById('winCount').innerText = s.wins;
         document.getElementById('totalCount').innerText = s.total;
     });
 
-    // ব্র্যাকেট লোড
     db.ref('matches').on('value', snap => {
         const b = document.getElementById('bracket');
         b.innerHTML = "";
