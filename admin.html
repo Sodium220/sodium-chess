@@ -2,33 +2,57 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Admin - Tournament Bracket</title>
+    <title>Admin Panel - Sodium Chess</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0f3460; color: white; font-family: sans-serif; padding: 20px; }
-        .box { background: #16213e; padding: 20px; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e94560; }
-        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; box-sizing: border-box; }
-        button { background: #e94560; color: white; font-weight: bold; cursor: pointer; }
-        .match-card { background: #1a1a2e; padding: 15px; margin-top: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #24a0ed; }
-        .del-btn { background: #ff4b2b; width: auto; padding: 5px 15px; }
+        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .box { background: #162a47; padding: 25px; border-radius: 12px; max-width: 600px; margin: auto; border: 1px solid #00d2ff; }
+        input, select, button { padding: 10px; margin: 5px 0; border-radius: 5px; border: none; width: 100%; box-sizing: border-box; }
+        button { background: #00d2ff; color: #0b1e36; font-weight: bold; cursor: pointer; }
+        button:hover { background: #00a6c9; }
+        .match-card { background: #0f213a; padding: 10px; margin-top: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00d2ff; }
+        .generated-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .generated-row input { background: #0b1e36; color: white; border: 1px solid #444; }
+        .squad-badge { background: #ff4757; color: white; font-size: 10px; padding: 2px 5px; border-radius: 3px; margin-left: 5px; }
+        .btn-group { display: flex; gap: 5px; }
+        .btn-del { background: #ff4757; color: white; width: auto; }
+        .btn-view { background: #2ed573; color: #0b1e36; width: auto; }
     </style>
 </head>
 <body>
     <div class="box">
-        <h2>Tournament Manager</h2>
-        <input type="text" id="p1" placeholder="সাদা প্লেয়ার ইউজারনেম">
-        <input type="text" id="p2" placeholder="কালো প্লেয়ার ইউজারনেম">
-        <select id="mode">
-            <option value="60">Bullet (1 min)</option>
-            <option value="180" selected>Blitz (3 min)</option>
-            <option value="600">Rapid (10 min)</option>
-        </select>
-        <button onclick="create()">ম্যাচ তৈরি করুন</button>
-        <hr>
-        <h3>চলমান ব্র্যাকেট:</h3>
-        <div id="list"></div>
-        <button onclick="localStorage.clear(); location.href='index.html'" style="background:#444">লগ আউট</button>
+        <h2 style="text-align:center; color:#00d2ff;">Tournament Center</h2>
+        
+        <div style="background:#0f213a; padding:15px; border-radius:8px;">
+            <h3>Create Bracket</h3>
+            <label>Mode:</label>
+            <select id="gameMode">
+                <option value="Solo">Solo (1v1)</option>
+                <option value="Squad">Squad Battle</option>
+            </select>
+            
+            <label>Time Control:</label>
+            <select id="timeLimit">
+                <option value="60">Bullet (1m)</option>
+                <option value="180" selected>Blitz (3m)</option>
+                <option value="600">Rapid (10m)</option>
+            </select>
+
+            <label>Total Players (Creates Boxes):</label>
+            <input type="number" id="playerCount" placeholder="Ex: 4, 8, 16" min="2">
+            <button onclick="generateBoxes()">Generate Boxes</button>
+
+            <div id="manual-entry-area" style="margin-top:15px;"></div>
+            <button id="publish-btn" class="hidden" onclick="publishMatches()" style="background:#2ed573;">Publish Bracket</button>
+        </div>
+
+        <hr style="border-color:#2a4a75;">
+        
+        <h3>Live Matches</h3>
+        <div id="match-list"></div>
+        
+        <button onclick="localStorage.clear(); location.href='index.html'" style="background:#57606f; margin-top:20px;">Logout</button>
     </div>
 
 <script>
@@ -38,34 +62,80 @@
 
     if(localStorage.getItem("userRole") !== "admin") location.href = "index.html";
 
-    function create() {
-        const p1 = document.getElementById('p1').value.toLowerCase().trim();
-        const p2 = document.getElementById('p2').value.toLowerCase().trim();
-        const t = parseInt(document.getElementById('mode').value);
-        if(!p1 || !p2) return alert("দুজনের ইউজারনেম দিন");
+    function generateBoxes() {
+        const count = parseInt(document.getElementById('playerCount').value);
+        if(!count || count < 2 || count % 2 !== 0) return alert("Please enter an even number (2, 4, 8..)");
         
-        const id = db.ref('matches').push().key;
-        db.ref('matches/'+id).set({p1, p2, time:t, id});
-        db.ref('live_matches/'+id).set({timeLeftW:t, timeLeftB:t, status:'waiting', turn:'w', f:'start'});
-        alert("ম্যাচ ব্র্যাকেটে যোগ হয়েছে!");
+        const area = document.getElementById('manual-entry-area');
+        area.innerHTML = "";
+        
+        const matches = count / 2;
+        for(let i=0; i<matches; i++) {
+            area.innerHTML += `
+                <div class="generated-row" id="row-${i}">
+                    <span>Match ${i+1}:</span>
+                    <input type="text" placeholder="Player 1 (White)" class="p1-in">
+                    <span>VS</span>
+                    <input type="text" placeholder="Player 2 (Black)" class="p2-in">
+                </div>
+            `;
+        }
+        document.getElementById('publish-btn').style.display = 'block';
+    }
+
+    function publishMatches() {
+        const rows = document.querySelectorAll('.generated-row');
+        const time = parseInt(document.getElementById('timeLimit').value);
+        const mode = document.getElementById('gameMode').value;
+        let created = 0;
+
+        rows.forEach(row => {
+            const p1 = row.querySelector('.p1-in').value.trim().toLowerCase();
+            const p2 = row.querySelector('.p2-in').value.trim().toLowerCase();
+            
+            if(p1 && p2) {
+                const id = db.ref('matches').push().key;
+                db.ref('matches/'+id).set({p1, p2, time, type: mode, id});
+                db.ref('live_matches/'+id).set({
+                    timeLeftW: time, timeLeftB: time, status: 'waiting', turn: 'w', f: 'start'
+                });
+                created++;
+            }
+        });
+
+        if(created > 0) {
+            alert(`${created} matches published successfully!`);
+            document.getElementById('manual-entry-area').innerHTML = "";
+            document.getElementById('publish-btn').style.display = 'none';
+        } else {
+            alert("Please fill in player names.");
+        }
     }
 
     db.ref('matches').on('value', snap => {
-        const list = document.getElementById('list');
+        const list = document.getElementById('match-list');
         list.innerHTML = "";
         const data = snap.val();
-        if(!data) return list.innerHTML = "কোনো ম্যাচ নেই।";
+        if(!data) return list.innerHTML = "<p style='text-align:center; color:#777'>No active matches.</p>";
+        
         Object.keys(data).forEach(k => {
             const m = data[k];
-            list.innerHTML += `<div class="match-card">
-                <span><b>${m.p1}</b> vs <b>${m.p2}</b></span>
-                <button class="del-btn" onclick="deleteMatch('${k}')">মুছে ফেলুন</button>
-            </div>`;
+            list.innerHTML += `
+                <div class="match-card">
+                    <div>
+                        <b>${m.p1}</b> vs <b>${m.p2}</b> 
+                        ${m.type === 'Squad' ? '<span class="squad-badge">SQUAD</span>' : ''}
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn-view" onclick="location.href='game.html?id=${k}'">View</button>
+                        <button class="btn-del" onclick="deleteMatch('${k}')">Del</button>
+                    </div>
+                </div>`;
         });
     });
 
     function deleteMatch(k) {
-        if(confirm("ম্যাচটি ডিলিট করতে চান?")) {
+        if(confirm("Delete this match?")) {
             db.ref('matches/'+k).remove();
             db.ref('live_matches/'+k).remove();
         }
