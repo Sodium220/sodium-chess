@@ -2,139 +2,169 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Admin - Tournament Control</title>
+    <title>Admin - Bracket Manager</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; }
-        .box { background: #162a47; padding: 25px; border-radius: 12px; max-width: 700px; margin: auto; border: 1px solid #00d2ff; }
-        input, select, button { padding: 10px; margin: 5px 0; border-radius: 5px; border: none; width: 100%; box-sizing: border-box; }
-        button { background: #00d2ff; color: #0b1e36; font-weight: bold; cursor: pointer; }
-        button:hover { background: #00a6c9; }
-        .match-item { background: #0f213a; padding: 10px; margin-top: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #ffd32a; }
-        .row-inputs { display: flex; gap: 10px; margin-bottom: 10px; }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; padding: 20px; }
+        
+        /* Bracket Container */
+        .bracket-container { display: flex; overflow-x: auto; padding: 40px; gap: 50px; }
+        .round-column { display: flex; flex-direction: column; justify-content: space-around; min-width: 200px; }
+        
+        /* Match Box */
+        .match-box { background: #333; border: 1px solid #555; border-radius: 5px; margin: 10px 0; position: relative; }
+        .player-slot { 
+            padding: 8px 12px; border-bottom: 1px solid #444; height: 30px; display: flex; 
+            justify-content: space-between; align-items: center; cursor: pointer; position: relative;
+        }
+        .player-slot:last-child { border-bottom: none; }
+        .player-slot input { background: transparent; border: none; color: white; width: 80%; outline: none; font-size: 14px; }
+        
+        /* Connector Lines (Pure CSS Tree) */
+        .match-box::after {
+            content: ""; position: absolute; right: -25px; top: 50%; width: 25px; height: 2px; background: #555;
+        }
+        .match-box:nth-child(odd)::before {
+            content: ""; position: absolute; right: -25px; top: 50%; width: 2px; height: 100%; background: #555; transform: translateY(50%);
+        }
+        .round-column:last-child .match-box::after { display: none; }
+        .round-column:last-child .match-box::before { display: none; }
+
+        /* Admin Controls (Hover) */
+        .controls { display: none; gap: 5px; }
+        .player-slot:hover .controls { display: flex; }
+        .btn-win { color: #2ed573; cursor: pointer; font-weight: bold; }
+        .btn-lose { color: #ff4757; cursor: pointer; font-weight: bold; }
+
+        /* Status Styles */
+        .eliminated input { text-decoration: line-through; color: #777; }
+        .winner input { color: #2ed573; font-weight: bold; }
+        
+        /* Inputs */
+        .setup-box { background: #222; padding: 20px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #444; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h2 style="text-align:center; color:#00d2ff;">Tournament Manager</h2>
-        
-        <div style="background:#0f213a; padding:15px; border-radius:8px;">
-            <h3>Create Match Slot</h3>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <div>
-                    <label>Round Name:</label>
-                    <select id="roundSelect">
-                        <option value="Round 1">Round 1 (Prelims)</option>
-                        <option value="Quarter Final">Quarter Final</option>
-                        <option value="Semi Final">Semi Final</option>
-                        <option value="Final">Grand Final</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Mode:</label>
-                    <select id="modeSelect">
-                        <option value="Solo">Solo (1v1)</option>
-                        <option value="Squad">Squad</option>
-                    </select>
-                </div>
-            </div>
 
-            <label>Time Control (Seconds):</label>
-            <select id="timeSelect">
-                <option value="180">Blitz (3 min)</option>
-                <option value="600">Rapid (10 min)</option>
-                <option value="60">Bullet (1 min)</option>
-            </select>
+<div class="setup-box">
+    <h2>🏆 Tournament Bracket Maker</h2>
+    <label>Total Players (Example: 4, 8, 16):</label>
+    <input type="number" id="pCount" placeholder="8" style="padding:5px;">
+    <button onclick="createBracket()">Generate Bracket</button>
+    <button onclick="resetBracket()" style="background:#ff4757; color:white; border:none; padding:6px;">Reset All</button>
+    <p style="color:gray; font-size:12px;">*Click name to edit. Hover for Win(✔)/Loss(✘) options.</p>
+</div>
 
-            <hr style="border-color:#2a4a75">
-            <label>Generate Slots (Active Players):</label>
-            <input type="number" id="boxCount" placeholder="Number of players (e.g. 4, 8)" min="2">
-            <button onclick="generateInputs()">Generate Slots</button>
-
-            <div id="input-area" style="margin-top:15px;"></div>
-            <button id="pub-btn" onclick="publish()" class="hidden" style="background:#2ed573; display:none;">Publish to Bracket</button>
-        </div>
-
-        <h3>Active Matches</h3>
-        <div id="match-list"></div>
-        <button onclick="localStorage.clear(); location.href='index.html'" style="background:#ff4757; margin-top:20px;">Logout</button>
-    </div>
+<div id="bracket-root" class="bracket-container"></div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const bRef = db.ref('tournament_bracket');
 
-    if(localStorage.getItem("userRole") !== "admin") location.href = "index.html";
+    // 1. Create Structure in Firebase
+    function createBracket() {
+        const n = parseInt(document.getElementById('pCount').value);
+        if(!n || (n & (n - 1)) !== 0) return alert("Please enter power of 2 (e.g. 2, 4, 8, 16)");
 
-    function generateInputs() {
-        const n = parseInt(document.getElementById('boxCount').value);
-        if(!n || n%2!==0) return alert("Please enter an even number (2, 4, 8)");
-        
-        const area = document.getElementById('input-area');
-        area.innerHTML = "";
-        for(let i=0; i<n/2; i++) {
-            area.innerHTML += `
-                <div class="row-inputs">
-                    <input type="text" placeholder="White Player" class="p1">
-                    <span style="align-self:center; font-weight:bold; color:#777">VS</span>
-                    <input type="text" placeholder="Black Player" class="p2">
-                </div>`;
-        }
-        document.getElementById('pub-btn').style.display = 'block';
-    }
+        let rounds = [];
+        let matchCount = n / 2;
+        let rNum = 1;
 
-    function publish() {
-        const round = document.getElementById('roundSelect').value;
-        const mode = document.getElementById('modeSelect').value;
-        const time = parseInt(document.getElementById('timeSelect').value);
-        const rows = document.querySelectorAll('.row-inputs');
-        let count = 0;
-
-        rows.forEach(r => {
-            const p1 = r.querySelector('.p1').value.toLowerCase().trim();
-            const p2 = r.querySelector('.p2').value.toLowerCase().trim();
-            if(p1 && p2) {
-                const id = db.ref('matches').push().key;
-                db.ref('matches/'+id).set({p1, p2, time, round, mode, id});
-                db.ref('live_matches/'+id).set({timeLeftW:time, timeLeftB:time, status:'waiting', turn:'w', f:'start'});
-                count++;
+        while(matchCount >= 1) {
+            let matches = [];
+            for(let i=0; i<matchCount; i++) {
+                matches.push({
+                    id: `R${rNum}_M${i}`,
+                    p1: (rNum===1) ? `Player ${i*2+1}` : "",
+                    p2: (rNum===1) ? `Player ${i*2+2}` : "",
+                    s1: "", // status p1 (win/loss)
+                    s2: ""  // status p2
+                });
             }
-        });
-        
-        if(count>0) {
-            alert(count + " matches published to " + round);
-            document.getElementById('input-area').innerHTML = "";
-            document.getElementById('pub-btn').style.display = 'none';
+            rounds.push(matches);
+            matchCount = matchCount / 2;
+            rNum++;
         }
+        bRef.set(rounds);
     }
 
-    db.ref('matches').on('value', snap => {
-        const div = document.getElementById('match-list');
-        div.innerHTML = "";
+    function resetBracket() { if(confirm("Clear all?")) bRef.remove(); }
+
+    // 2. Render & Control Logic
+    bRef.on('value', snap => {
         const data = snap.val();
-        if(data) {
-            Object.keys(data).forEach(k => {
-                const m = data[k];
-                div.innerHTML += `
-                    <div class="match-item">
-                        <span>[${m.round}] <b>${m.p1}</b> vs <b>${m.p2}</b></span>
-                        <div style="display:flex; gap:5px;">
-                            <button onclick="location.href='game.html?id=${k}'" style="width:auto; padding:5px 10px; background:#2ed573; color:black">View</button>
-                            <button onclick="del('${k}')" style="width:auto; padding:5px 10px; background:#ff4757;">X</button>
+        const root = document.getElementById('bracket-root');
+        root.innerHTML = "";
+        
+        if(!data) return root.innerHTML = "<p>No tournament active.</p>";
+
+        data.forEach((round, rIdx) => {
+            const col = document.createElement('div');
+            col.className = 'round-column';
+            
+            round.forEach((match, mIdx) => {
+                // Determine Classes
+                const c1 = match.s1 === 'lost' ? 'eliminated' : (match.s1 === 'win' ? 'winner' : '');
+                const c2 = match.s2 === 'lost' ? 'eliminated' : (match.s2 === 'win' ? 'winner' : '');
+
+                col.innerHTML += `
+                    <div class="match-box">
+                        <div class="player-slot ${c1}">
+                            <input type="text" value="${match.p1}" onchange="updateName(${rIdx}, ${mIdx}, 'p1', this.value)">
+                            <div class="controls">
+                                <span class="btn-win" onclick="setWin(${rIdx}, ${mIdx}, 'p1', '${match.p1}')">✔</span>
+                                <span class="btn-lose" onclick="setLose(${rIdx}, ${mIdx}, 'p1')">✘</span>
+                            </div>
                         </div>
-                    </div>`;
+                        <div class="player-slot ${c2}">
+                            <input type="text" value="${match.p2}" onchange="updateName(${rIdx}, ${mIdx}, 'p2', this.value)">
+                            <div class="controls">
+                                <span class="btn-win" onclick="setWin(${rIdx}, ${mIdx}, 'p2', '${match.p2}')">✔</span>
+                                <span class="btn-lose" onclick="setLose(${rIdx}, ${mIdx}, 'p2')">✘</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
             });
-        }
+            root.appendChild(col);
+        });
     });
 
-    function del(k) {
-        if(confirm("Delete match?")) {
-            db.ref('matches/'+k).remove();
-            db.ref('live_matches/'+k).remove();
-        }
+    // 3. Update Database Functions
+    function updateName(r, m, p, val) {
+        bRef.child(`${r}/${m}/${p}`).set(val);
+    }
+
+    function setLose(r, m, p) {
+        // Set 'lost' status -> CSS Strikethrough
+        const field = (p === 'p1') ? 's1' : 's2';
+        bRef.child(`${r}/${m}/${field}`).set('lost');
+    }
+
+    function setWin(r, m, p, name) {
+        if(!name) return alert("No name found!");
+        
+        // 1. Mark as winner visually
+        const statusField = (p === 'p1') ? 's1' : 's2';
+        bRef.child(`${r}/${m}/${statusField}`).set('win');
+
+        // 2. Move to NEXT Round
+        bRef.once('value', snap => {
+            const rounds = snap.val();
+            if(r + 1 < rounds.length) {
+                const nextMatchIdx = Math.floor(m / 2); // Calculate parent match
+                const nextSlot = (m % 2 === 0) ? 'p1' : 'p2'; // Even=Top, Odd=Bottom
+                
+                bRef.child(`${r+1}/${nextMatchIdx}/${nextSlot}`).set(name);
+                // Reset status of next slot just in case
+                bRef.child(`${r+1}/${nextMatchIdx}/${(nextSlot==='p1'?'s1':'s2')}`).set('');
+            } else {
+                alert("🏆 TOURNAMENT CHAMPION: " + name);
+            }
+        });
     }
 </script>
 </body>
