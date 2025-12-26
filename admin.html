@@ -2,67 +2,74 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
+    <title>Admin - Tournament Bracket</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: sans-serif; background: #1a1a2e; color: white; padding: 20px; }
-        .box { background: #16213e; padding: 25px; border-radius: 12px; max-width: 550px; margin: auto; }
-        input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; }
-        button { background: #e94560; color: white; cursor: pointer; font-weight: bold; }
-        .match { background: #0f3460; padding: 15px; margin-top: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #e94560;}
-        .btn-live { background: #24a0ed; width: auto; padding: 5px 15px; margin-right: 5px;}
-        .btn-del { background: #ff4b2b; width: auto; padding: 5px 15px; }
+        body { background: #0f3460; color: white; font-family: sans-serif; padding: 20px; }
+        .box { background: #16213e; padding: 20px; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e94560; }
+        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; box-sizing: border-box; }
+        button { background: #e94560; color: white; font-weight: bold; cursor: pointer; }
+        .match-card { background: #1a1a2e; padding: 15px; margin-top: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #24a0ed; }
+        .del-btn { background: #ff4b2b; width: auto; padding: 5px 15px; }
     </style>
 </head>
 <body>
-<div class="box">
-    <h2>Admin Panel</h2>
-    <input type="text" id="p1" placeholder="প্লেয়ার ১ (White)">
-    <input type="text" id="p2" placeholder="প্লেয়ার ২ (Black)">
-    <button onclick="addMatch()">ম্যাচ তৈরি করুন</button>
-    <div id="list"></div>
-    <button onclick="window.location.href='index.html'" style="background:#555">Log Out</button>
-</div>
+    <div class="box">
+        <h2>Tournament Manager</h2>
+        <input type="text" id="p1" placeholder="সাদা প্লেয়ার ইউজারনেম">
+        <input type="text" id="p2" placeholder="কালো প্লেয়ার ইউজারনেম">
+        <select id="mode">
+            <option value="60">Bullet (1 min)</option>
+            <option value="180" selected>Blitz (3 min)</option>
+            <option value="600">Rapid (10 min)</option>
+        </select>
+        <button onclick="create()">ম্যাচ তৈরি করুন</button>
+        <hr>
+        <h3>চলমান ব্র্যাকেট:</h3>
+        <div id="list"></div>
+        <button onclick="localStorage.clear(); location.href='index.html'" style="background:#444">লগ আউট</button>
+    </div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    if(localStorage.getItem("userRole") !== "admin") window.location.href = "index.html";
+    if(localStorage.getItem("userRole") !== "admin") location.href = "index.html";
 
-    function addMatch() {
-        const p1 = document.getElementById('p1').value.trim();
-        const p2 = document.getElementById('p2').value.trim();
-        if(p1 && p2) {
-            db.ref('matches').push({ p1, p2 });
-            document.getElementById('p1').value = ""; document.getElementById('p2').value = "";
-        }
-    }
-
-    function deleteMatch(id) {
-        if(confirm("ম্যাচটি ডিলিট করতে চান?")) {
-            db.ref('matches/' + id).remove();
-            db.ref('live_matches/' + id).remove();
-        }
+    function create() {
+        const p1 = document.getElementById('p1').value.toLowerCase().trim();
+        const p2 = document.getElementById('p2').value.toLowerCase().trim();
+        const t = parseInt(document.getElementById('mode').value);
+        if(!p1 || !p2) return alert("দুজনের ইউজারনেম দিন");
+        
+        const id = db.ref('matches').push().key;
+        db.ref('matches/'+id).set({p1, p2, time:t, id});
+        db.ref('live_matches/'+id).set({timeLeftW:t, timeLeftB:t, status:'waiting', turn:'w', f:'start'});
+        alert("ম্যাচ ব্র্যাকেটে যোগ হয়েছে!");
     }
 
     db.ref('matches').on('value', snap => {
-        const data = snap.val();
         const list = document.getElementById('list');
         list.innerHTML = "";
+        const data = snap.val();
         if(!data) return list.innerHTML = "কোনো ম্যাচ নেই।";
-        Object.keys(data).forEach(id => {
-            list.innerHTML += `<div class="match">
-                <span><b>${data[id].p1}</b> vs <b>${data[id].p2}</b></span>
-                <div>
-                    <button class="btn-live" onclick="window.location.href='game.html?id=${id}'">Live</button>
-                    <button class="btn-del" onclick="deleteMatch('${id}')">Delete</button>
-                </div>
+        Object.keys(data).forEach(k => {
+            const m = data[k];
+            list.innerHTML += `<div class="match-card">
+                <span><b>${m.p1}</b> vs <b>${m.p2}</b></span>
+                <button class="del-btn" onclick="deleteMatch('${k}')">মুছে ফেলুন</button>
             </div>`;
         });
     });
+
+    function deleteMatch(k) {
+        if(confirm("ম্যাচটি ডিলিট করতে চান?")) {
+            db.ref('matches/'+k).remove();
+            db.ref('live_matches/'+k).remove();
+        }
+    }
 </script>
 </body>
 </html>
