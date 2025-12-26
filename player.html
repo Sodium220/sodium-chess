@@ -2,146 +2,74 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard</title>
+    <title>Live Tournament Bracket</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; margin:0; }
+        body { background: #121212; color: #ddd; font-family: 'Segoe UI', sans-serif; padding: 20px; display:flex; justify-content:center; }
         
-        /* Stats Header */
-        .header { display: flex; justify-content: space-between; align-items: center; background: #162a47; padding: 15px 30px; border-bottom: 2px solid #00d2ff; }
-        .stats-badge { background: #0f213a; padding: 5px 15px; border-radius: 20px; border: 1px solid #2a4a75; margin-left: 10px; }
+        h2 { position: fixed; top: 0; left: 20px; color: #00d2ff; }
 
-        /* Tournament Tree Container */
-        .tree-container { display: flex; overflow-x: auto; padding: 20px 0; gap: 30px; min-height: 300px; }
-        .round-column { min-width: 250px; display: flex; flex-direction: column; gap: 20px; }
-        .round-title { text-align: center; color: #ffd32a; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        /* Copy of Bracket Styles (Read Only) */
+        .bracket-container { display: flex; padding-top: 60px; gap: 60px; }
+        .round-column { display: flex; flex-direction: column; justify-content: space-around; min-width: 180px; }
         
-        /* Match Card Style */
-        .match-card { background: #162a47; padding: 15px; border-radius: 8px; border-left: 4px solid #2a4a75; position: relative; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        .match-card:hover { transform: translateY(-3px); border-color: #00d2ff; }
-        .active-match { border-color: #2ed573; box-shadow: 0 0 10px rgba(46, 213, 115, 0.2); }
-        .p-name { font-size: 15px; font-weight: bold; display: flex; justify-content: space-between; }
-        .vs { text-align: center; font-size: 12px; color: #777; margin: 5px 0; }
-        .btn-play { width: 100%; margin-top: 10px; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .play { background: #00d2ff; color: #000; }
-        .watch { background: #2f3640; color: #fff; border: 1px solid #555; }
+        .match-box { background: #2a2a2a; border: 1px solid #444; border-radius: 6px; margin: 10px 0; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .player-slot { 
+            padding: 10px 15px; border-bottom: 1px solid #333; height: 25px; display: flex; align-items: center; font-weight: bold; font-size: 15px;
+        }
+        .player-slot:last-child { border-bottom: none; }
+        
+        /* Connector Lines */
+        .match-box::after { content: ""; position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: #555; }
+        .match-box:nth-child(odd)::before { content: ""; position: absolute; right: -30px; top: 50%; width: 2px; height: 100%; background: #555; transform: translateY(50%); }
+        .round-column:last-child .match-box::after, .round-column:last-child .match-box::before { display: none; }
 
-        /* Leaderboard */
-        .leaderboard-sec { max-width: 800px; margin: 40px auto; background: #162a47; padding: 20px; border-radius: 10px; border: 1px solid #2a4a75; }
-        .lb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #2a4a75; align-items: center; }
-        .rank-num { width: 30px; font-weight: bold; }
-        .top-1 { color: #ffd32a; font-size: 1.2em; } /* Gold */
-        .top-2 { color: #dcdde1; font-size: 1.1em; } /* Silver */
-        .top-3 { color: #e1b12c; font-size: 1.1em; } /* Bronze */
+        /* Visual Status */
+        .eliminated { text-decoration: line-through; color: #555; opacity: 0.6; }
+        .winner { color: #2ed573; text-shadow: 0 0 5px rgba(46, 213, 115, 0.4); }
+        .empty { color: #444; font-style: italic; font-size: 12px; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div>
-            <h2 style="margin:0; display:inline;">Sodium Chess</h2>
-            <span class="stats-badge">Wins: <span id="myWins">0</span></span>
-        </div>
-        <div>
-            <span id="welcome">Loading...</span>
-            <button onclick="localStorage.clear(); location.href='index.html'" style="margin-left:15px; background:#ff4757; color:white; border:none; padding:5px 15px; border-radius:4px; cursor:pointer;">Logout</button>
-        </div>
-    </div>
-
-    <h3 style="margin: 20px 20px 5px 20px; color:#00d2ff;">Tournament Bracket (Live)</h3>
-    <div class="tree-container" id="bracket-root">
-        </div>
-
-    <div class="leaderboard-sec">
-        <h3 style="text-align:center; margin-top:0; color:#ffd32a;">🏆 Champions Leaderboard</h3>
-        <div id="lb-list">Loading ranking...</div>
+    <h2>🏆 Tournament Live Bracket</h2>
+    <div id="bracket-root" class="bracket-container">
+        <p>Loading bracket...</p>
     </div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const me = localStorage.getItem("username");
-    
-    if(!me) location.href = "index.html";
-    document.getElementById('welcome').innerText = me;
 
-    // --- 1. Stats Logic ---
-    db.ref('users/'+me+'/stats').on('value', snap => {
-        const s = snap.val() || {wins:0};
-        document.getElementById('myWins').innerText = s.wins;
-    });
-
-    // --- 2. Visual Bracket Logic ---
-    db.ref('matches').on('value', snap => {
+    db.ref('tournament_bracket').on('value', snap => {
+        const data = snap.val();
         const root = document.getElementById('bracket-root');
         root.innerHTML = "";
-        const data = snap.val();
         
-        if(!data) { root.innerHTML = "<p style='padding:20px'>No active tournament.</p>"; return; }
+        if(!data) return root.innerHTML = "<p style='margin-top:50px'>No tournament initialized yet.</p>";
 
-        // Group matches by Round
-        const rounds = {};
-        const order = ["Round 1", "Quarter Final", "Semi Final", "Final"]; // Display Order
-
-        Object.keys(data).forEach(k => {
-            const m = data[k];
-            const rName = m.round || "Round 1";
-            if(!rounds[rName]) rounds[rName] = [];
-            rounds[rName].push({key: k, ...m});
-        });
-
-        // Render Columns
-        order.forEach(rName => {
-            if(rounds[rName]) {
-                let html = `<div class="round-column"><div class="round-title">${rName}</div>`;
+        data.forEach(round => {
+            const col = document.createElement('div');
+            col.className = 'round-column';
+            
+            round.forEach(match => {
+                const c1 = match.s1 === 'lost' ? 'eliminated' : (match.s1 === 'win' ? 'winner' : '');
+                const c2 = match.s2 === 'lost' ? 'eliminated' : (match.s2 === 'win' ? 'winner' : '');
                 
-                rounds[rName].forEach(m => {
-                    const isMe = (m.p1 === me || m.p2 === me);
-                    html += `
-                        <div class="match-card ${isMe ? 'active-match' : ''}">
-                            <div class="p-name">${m.p1}</div>
-                            <div class="vs">VS</div>
-                            <div class="p-name">${m.p2}</div>
-                            <button class="btn-play ${isMe ? 'play' : 'watch'}" onclick="location.href='game.html?id=${m.key}'">
-                                ${isMe ? '▶ PLAY MATCH' : '👁 WATCH'}
-                            </button>
-                        </div>`;
-                });
-                
-                html += `</div>`; // End column
-                root.innerHTML += html;
-            }
-        });
-    });
+                // Show "Waiting..." if name is empty
+                const n1 = match.p1 || "<span class='empty'>Waiting...</span>";
+                const n2 = match.p2 || "<span class='empty'>Waiting...</span>";
 
-    // --- 3. Leaderboard Logic (Top Wins) ---
-    db.ref('users').on('value', snap => {
-        const users = [];
-        snap.forEach(c => {
-            const u = c.val();
-            if(u.role !== 'admin') users.push({name: u.u, wins: u.stats.wins || 0});
-        });
-
-        // Sort Highest Wins First
-        users.sort((a,b) => b.wins - a.wins);
-
-        const list = document.getElementById('lb-list');
-        list.innerHTML = "";
-        
-        users.slice(0, 10).forEach((u, i) => {
-            let rankClass = "";
-            let medal = "";
-            if(i===0) { rankClass="top-1"; medal="🥇"; }
-            else if(i===1) { rankClass="top-2"; medal="🥈"; }
-            else if(i===2) { rankClass="top-3"; medal="🥉"; }
-
-            list.innerHTML += `
-                <div class="lb-row">
-                    <span class="${rankClass}"><span class="rank-num">#${i+1}</span> ${medal} ${u.name}</span>
-                    <span style="color:#00d2ff; font-weight:bold;">${u.wins} Wins</span>
-                </div>`;
+                col.innerHTML += `
+                    <div class="match-box">
+                        <div class="player-slot ${c1}">${n1}</div>
+                        <div class="player-slot ${c2}">${n2}</div>
+                    </div>
+                `;
+            });
+            root.appendChild(col);
         });
     });
 </script>
