@@ -2,30 +2,47 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard - Sodium Chess</title>
+    <title>Player Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #1a1a2e; color: white; font-family: sans-serif; padding: 20px; }
-        .container { max-width: 600px; margin: auto; }
-        .stats-row { background: #16213e; padding: 20px; border-radius: 12px; display: flex; justify-content: space-around; margin-bottom: 25px; border: 1px solid #e94560; }
-        .match-card { background: #0f3460; padding: 15px; margin: 10px 0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
-        button { border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
-        .btn-play { background: #e94560; }
-        .btn-view { background: #24a0ed; }
+        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .stats-box { background: linear-gradient(135deg, #162a47, #0f213a); padding: 20px; border-radius: 12px; display: flex; justify-content: space-around; border: 1px solid #00d2ff; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .stat-item h2 { margin: 0; color: #00d2ff; font-size: 32px; }
+        .section-title { border-bottom: 2px solid #2a4a75; padding-bottom: 5px; margin-top: 30px; color: #00d2ff; }
+        
+        .card { background: #162a47; padding: 15px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+        .card:hover { transform: translateY(-3px); background: #1e3658; }
+        
+        button { border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
+        .play-btn { background: #00d2ff; color: #0b1e36; }
+        .watch-btn { background: #2ed573; color: #0b1e36; }
+        
+        .leader-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #2a4a75; }
+        .rank { font-weight: bold; color: #ffd32a; width: 30px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 id="userName">স্বাগতম!</h2>
-        <div class="stats-row">
-            <div><h2 id="winCount">0</h2><p>Wins</p></div>
-            <div><h2 id="totalCount">0</h2><p>Games Played</p></div>
+        <div class="header">
+            <h2 id="userName">Loading...</h2>
+            <button onclick="localStorage.clear(); location.href='index.html'" style="background:#ff4757;">Logout</button>
         </div>
 
-        <h3>টুর্নামেন্ট ব্র্যাকেট (লাইভ):</h3>
+        <div class="stats-box">
+            <div class="stat-item"><h2 id="winCount">0</h2><p>Wins</p></div>
+            <div class="stat-item"><h2 id="totalCount">0</h2><p>Matches Played</p></div>
+        </div>
+
+        <h3 class="section-title">Current Tournament Matches</h3>
         <div id="bracket"></div>
-        <button onclick="localStorage.clear(); location.href='index.html'" style="margin-top:20px; background:gray">Logout</button>
+
+        <h3 class="section-title">Top Players (Leaderboard)</h3>
+        <div id="leaderboard" style="background:#0f213a; padding:15px; border-radius:8px;">
+            <p>Loading ranking...</p>
+        </div>
     </div>
 
 <script>
@@ -33,29 +50,63 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const me = localStorage.getItem("username");
+    
     if(!me) location.href = "index.html";
-    document.getElementById('userName').innerText = "হ্যালো, " + me;
+    document.getElementById('userName').innerText = "Player: " + me;
 
+    // 1. My Stats
     db.ref('users/' + me + '/stats').on('value', snap => {
         const s = snap.val() || {wins:0, total:0};
         document.getElementById('winCount').innerText = s.wins;
         document.getElementById('totalCount').innerText = s.total;
     });
 
+    // 2. Bracket System
     db.ref('matches').on('value', snap => {
         const b = document.getElementById('bracket');
         b.innerHTML = "";
         const data = snap.val();
-        if(!data) return b.innerHTML = "কোনো ম্যাচ তৈরি হয়নি।";
+        if(!data) return b.innerHTML = "<p>No active matches.</p>";
+        
         Object.keys(data).forEach(k => {
             const m = data[k];
-            const isMyMatch = (m.p1 === me || m.p2 === me);
-            b.innerHTML += `<div class="match-card">
-                <span><b>${m.p1}</b> vs <b>${m.p2}</b></span>
-                <button class="${isMyMatch ? 'btn-play' : 'btn-view'}" onclick="location.href='game.html?id=${k}'">
-                    ${isMyMatch ? 'Play Match' : 'Watch Live'}
-                </button>
-            </div>`;
+            const isMe = (m.p1 === me || m.p2 === me);
+            const badge = m.type === 'Squad' ? '<span style="background:#ff4757; font-size:10px; padding:2px 4px; border-radius:3px; margin-left:5px;">SQUAD</span>' : '';
+            
+            b.innerHTML += `
+                <div class="card" style="border-left: 4px solid ${isMe ? '#00d2ff' : '#2ed573'}">
+                    <div>
+                        <span style="font-size:18px;">${m.p1} <span style="color:#777">vs</span> ${m.p2}</span>
+                        ${badge}
+                    </div>
+                    <button class="${isMe ? 'play-btn' : 'watch-btn'}" onclick="location.href='game.html?id=${k}'">
+                        ${isMe ? 'PLAY' : 'WATCH'}
+                    </button>
+                </div>`;
+        });
+    });
+
+    // 3. Leaderboard Logic
+    db.ref('users').on('value', snap => {
+        const users = [];
+        snap.forEach(child => {
+            const u = child.val();
+            if(u.role !== 'admin') {
+                users.push({ name: u.u, wins: u.stats.wins || 0 });
+            }
+        });
+
+        // Sort by Wins (High to Low)
+        users.sort((a, b) => b.wins - a.wins);
+
+        const lb = document.getElementById('leaderboard');
+        lb.innerHTML = "";
+        users.slice(0, 5).forEach((u, index) => { // Top 5
+            lb.innerHTML += `
+                <div class="leader-row">
+                    <span><span class="rank">#${index+1}</span> ${u.name}</span>
+                    <span style="color:#00d2ff; font-weight:bold;">${u.wins} Wins</span>
+                </div>`;
         });
     });
 </script>
