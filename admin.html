@@ -2,80 +2,75 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard - Sodium Chess</title>
+    <title>Sodium Admin - Pro Control</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary: #00d2ff; --bg: #050a12; --card: #101926; --accent: #2ed573; --danger: #ff4757; }
-        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; }
+        :root { --primary: #00d2ff; --bg: #0b1421; --card: #162231; --accent: #2ed573; --danger: #ff4757; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; overflow: hidden; }
         
         /* Sidebar */
-        .sidebar { width: 250px; background: var(--card); height: 100vh; padding: 20px; border-right: 1px solid #222; position: fixed; }
-        .sidebar h2 { color: var(--primary); text-align: center; }
-        .nav-btn { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; background: #1a2433; color: white; cursor: pointer; text-align: left; transition: 0.3s; }
-        .nav-btn:hover { background: var(--primary); color: #000; transform: translateX(5px); }
+        .sidebar { width: 260px; background: var(--card); height: 100vh; padding: 25px; border-right: 1px solid #2a3a4d; }
+        .sidebar h2 { color: var(--primary); font-size: 22px; margin-bottom: 40px; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        .nav-link { display: block; padding: 12px; color: #adb5bd; text-decoration: none; border-radius: 8px; margin-bottom: 10px; transition: 0.3s; cursor: pointer; }
+        .nav-link:hover, .nav-link.active { background: var(--primary); color: #000; font-weight: bold; }
 
-        /* Main Content */
-        .main { margin-left: 270px; padding: 30px; width: 100%; }
-        .glass-card { background: rgba(16, 25, 38, 0.8); backdrop-filter: blur(10px); padding: 25px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px; }
+        /* Main Area */
+        .content { flex: 1; height: 100vh; overflow-y: auto; padding: 40px; box-sizing: border-box; }
+        .header-box { background: var(--card); padding: 25px; border-radius: 15px; border: 1px solid #2a3a4d; margin-bottom: 30px; }
 
-        /* Bracket UI */
-        .bracket-wrapper { display: flex; gap: 60px; padding: 40px 0; overflow-x: auto; }
-        .round-col { display: flex; flex-direction: column; justify-content: space-around; min-width: 220px; }
-        .match-card { background: var(--card); border: 1px solid #333; border-radius: 10px; margin: 15px 0; position: relative; transition: 0.3s; }
-        .match-card:hover { border-color: var(--primary); box-shadow: 0 0 15px rgba(0, 210, 255, 0.1); }
+        /* Bracket Visualization */
+        .bracket-container { display: flex; gap: 60px; padding: 20px 0; min-height: 500px; }
+        .round-column { display: flex; flex-direction: column; justify-content: space-around; min-width: 240px; }
         
-        .p-slot { padding: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; height: 35px; }
-        .p-slot:last-child { border-bottom: none; }
-        .p-slot input { background: transparent; border: none; color: #fff; width: 70%; font-size: 14px; outline: none; }
+        .match-card { background: #1c2c3e; border: 1px solid #34495e; border-radius: 10px; margin: 20px 0; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .player-row { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a3a4d; position: relative; }
+        .player-row:last-child { border-bottom: none; }
+        .player-row input { background: transparent; border: none; color: #fff; width: 70%; font-size: 14px; outline: none; transition: 0.3s; }
         
-        /* Controls */
-        .actions { opacity: 0; transition: 0.2s; display: flex; gap: 10px; }
-        .p-slot:hover .actions { opacity: 1; }
-        .btn-check { color: var(--accent); cursor: pointer; }
-        .btn-cross { color: var(--danger); cursor: pointer; }
+        /* Action Buttons on Hover */
+        .action-btns { position: absolute; right: 10px; display: none; gap: 8px; background: #1c2c3e; padding-left: 5px; }
+        .player-row:hover .action-btns { display: flex; }
+        .btn-win { color: var(--accent); cursor: pointer; font-size: 18px; }
+        .btn-lose { color: var(--danger); cursor: pointer; font-size: 18px; }
 
-        /* States */
-        .eliminated { text-decoration: line-through; color: #555 !important; }
-        .winner-text { color: var(--accent) !important; font-weight: bold; }
+        /* Statuses */
+        .win-status { color: var(--accent) !important; font-weight: bold; }
+        .lose-status { text-decoration: line-through; color: #5d6d7e !important; }
 
-        /* Lines */
-        .match-card::after { content: ""; position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: #333; }
-        .round-col:last-child .match-card::after { display: none; }
+        /* Connecting Lines */
+        .match-card::after { content: ""; position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: #34495e; }
+        .round-column:last-child .match-card::after { display: none; }
 
-        input[type="number"] { padding: 10px; border-radius: 5px; border: 1px solid #333; background: #1a2433; color: white; width: 100px; }
-        .btn-main { background: var(--primary); color: #000; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        input[type="number"] { background: #0b1421; border: 1px solid #34495e; color: #fff; padding: 10px; border-radius: 5px; width: 80px; }
+        button.primary-btn { background: var(--primary); color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button.primary-btn:hover { opacity: 0.8; transform: scale(1.05); }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2><i class="fas fa-chess-king"></i> SODIUM</h2>
-    <button class="nav-btn" onclick="showSec('dashboard')"><i class="fas fa-home"></i> Dashboard</button>
-    <button class="nav-btn" onclick="showSec('bracket')"><i class="fas fa-sitemap"></i> Tournament Bracket</button>
-    <button class="nav-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    <h2><i class="fas fa-chess"></i> SODIUM PANEL</h2>
+    <div class="nav-link active" onclick="show('bracket-sec')"><i class="fas fa-sitemap"></i> Tournament Tree</div>
+    <div class="nav-link" onclick="location.reload()"><i class="fas fa-sync"></i> Refresh Data</div>
+    <div class="nav-link" style="margin-top:50px; color:var(--danger)" onclick="logout()"><i class="fas fa-power-off"></i> Logout</div>
 </div>
 
-<div class="main">
-    <div id="dashboard" class="section">
-        <div class="glass-card">
-            <h1>Admin Dashboard</h1>
-            <p>নতুন গেম হোস্ট করুন অথবা ব্র্যাকেট ম্যানেজ করুন।</p>
-        </div>
-    </div>
-
-    <div id="bracket" class="section" style="display:none;">
-        <div class="glass-card">
-            <h3>Bracket Generator</h3>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="number" id="playerCount" placeholder="Players" min="2" value="8">
-                <button class="btn-main" onclick="genBracket()">Generate Tree</button>
-                <button onclick="resetBrk()" style="background:transparent; color:red; border:1px solid red; padding:8px; border-radius:5px; cursor:pointer;">Reset</button>
+<div class="content">
+    <div id="bracket-sec">
+        <div class="header-box">
+            <h1 style="margin:0 0 15px 0;">Tournament Bracket System</h1>
+            <div style="display:flex; gap:15px; align-items:center;">
+                <label>Player Count (2, 4, 8, 16):</label>
+                <input type="number" id="pCount" value="8">
+                <button class="primary-btn" onclick="buildTree()">Generate Bracket</button>
+                <button onclick="clearTree()" style="background:none; border:1px solid var(--danger); color:var(--danger); padding:8px; border-radius:5px; cursor:pointer;">Reset All</button>
             </div>
         </div>
 
-        <div class="bracket-wrapper" id="bracket-view"></div>
+        <div class="bracket-container" id="bracket-display">
+            </div>
     </div>
 </div>
 
@@ -83,77 +78,93 @@
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const bRef = db.ref('tournament_tree');
+    const treeRef = db.ref('tournament_tree');
 
-    function showSec(id) {
-        document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-        document.getElementById(id).style.display = 'block';
-    }
+    // 1. Generate Tree Structure
+    function buildTree() {
+        const n = parseInt(document.getElementById('pCount').value);
+        if(!n || (n & (n-1)) !== 0) return alert("Please enter a power of 2 (e.g., 4, 8, 16)");
 
-    function genBracket() {
-        const n = parseInt(document.getElementById('playerCount').value);
-        if((n & (n - 1)) !== 0) return alert("Please enter power of 2 (2, 4, 8, 16, 32)");
-        
-        let rounds = [];
-        let mCount = n / 2;
-        let rIdx = 0;
-        while(mCount >= 1) {
+        let structure = [];
+        let matchesInRound = n / 2;
+        let roundLabel = 0;
+
+        while(matchesInRound >= 1) {
             let matches = [];
-            for(let i=0; i<mCount; i++) {
-                matches.push({ id: `R${rIdx}_M${i}`, p1: rIdx==0?`P${i*2+1}`:"", p2: rIdx==0?`P${i*2+2}`:"", s1:"", s2:"" });
+            for(let i=0; i<matchesInRound; i++) {
+                matches.push({
+                    p1: roundLabel === 0 ? "Player "+(i*2+1) : "",
+                    p2: roundLabel === 0 ? "Player "+(i*2+2) : "",
+                    s1: "", s2: ""
+                });
             }
-            rounds.push(matches);
-            mCount /= 2;
-            rIdx++;
+            structure.push(matches);
+            matchesInRound /= 2;
+            roundLabel++;
         }
-        bRef.set(rounds);
+        treeRef.set(structure).then(() => alert("Bracket Generated Successfully!"));
     }
 
-    function resetBrk() { if(confirm("Clear Bracket?")) bRef.remove(); }
+    function clearTree() { if(confirm("Are you sure to delete the bracket?")) treeRef.remove(); }
 
-    bRef.on('value', snap => {
-        const root = document.getElementById('bracket-view');
-        root.innerHTML = "";
+    // 2. Real-time Rendering
+    treeRef.on('value', snap => {
+        const container = document.getElementById('bracket-display');
+        container.innerHTML = "";
         const data = snap.val();
-        if(!data) return;
+        if(!data) return container.innerHTML = "<h3>No bracket found. Enter player count and generate.</h3>";
 
         data.forEach((round, rIdx) => {
             const col = document.createElement('div');
-            col.className = 'round-col';
+            col.className = 'round-column';
+            
             round.forEach((m, mIdx) => {
                 col.innerHTML += `
                 <div class="match-card">
-                    <div class="p-slot ${m.s1}">
-                        <input type="text" class="${m.s1==='win'?'winner-text':''}" value="${m.p1}" onchange="upName(${rIdx},${mIdx},'p1',this.value)">
-                        <div class="actions">
-                            <i class="fas fa-check btn-check" onclick="setWin(${rIdx},${mIdx},'p1','${m.p1}')"></i>
-                            <i class="fas fa-times btn-cross" onclick="setLose(${rIdx},${mIdx},'p1')"></i>
+                    <div class="player-row">
+                        <input type="text" value="${m.p1}" class="${m.s1}" onchange="editName(${rIdx},${mIdx},'p1',this.value)">
+                        <div class="action-btns">
+                            <i class="fas fa-check-circle btn-win" onclick="handleWin(${rIdx},${mIdx},'p1','${m.p1}')"></i>
+                            <i class="fas fa-times-circle btn-lose" onclick="handleLose(${rIdx},${mIdx},'p1')"></i>
                         </div>
                     </div>
-                    <div class="p-slot ${m.s2}">
-                        <input type="text" class="${m.s2==='win'?'winner-text':''}" value="${m.p2}" onchange="upName(${rIdx},${mIdx},'p2',this.value)">
-                        <div class="actions">
-                            <i class="fas fa-check btn-check" onclick="setWin(${rIdx},${mIdx},'p2','${m.p2}')"></i>
-                            <i class="fas fa-times btn-cross" onclick="setLose(${rIdx},${mIdx},'p2')"></i>
+                    <div class="player-row">
+                        <input type="text" value="${m.p2}" class="${m.s2}" onchange="editName(${rIdx},${mIdx},'p2',this.value)">
+                        <div class="action-btns">
+                            <i class="fas fa-check-circle btn-win" onclick="handleWin(${rIdx},${mIdx},'p2','${m.p2}')"></i>
+                            <i class="fas fa-times-circle btn-lose" onclick="handleLose(${rIdx},${mIdx},'p2')"></i>
                         </div>
                     </div>
                 </div>`;
             });
-            root.appendChild(col);
+            container.appendChild(col);
         });
     });
 
-    function upName(r, m, p, v) { bRef.child(`${r}/${m}/${p}`).set(v); }
-    function setLose(r, m, p) { bRef.child(`${r}/${m}/${p==='p1'?'s1':'s2'}`).set('eliminated'); }
+    // 3. Control Functions
+    function editName(r, m, p, val) { treeRef.child(`${r}/${m}/${p}`).set(val); }
     
-    function setWin(r, m, p, name) {
-        bRef.child(`${r}/${m}/${p==='p1'?'s1':'s2'}`).set('win');
-        bRef.once('value', s => {
-            const rds = s.val();
-            if(r + 1 < rds.length) {
-                const nextM = Math.floor(m/2);
-                const nextP = (m%2===0) ? 'p1' : 'p2';
-                bRef.child(`${r+1}/${nextM}/${nextP}`).set(name);
+    function handleLose(r, m, p) {
+        const field = p === 'p1' ? 's1' : 's2';
+        treeRef.child(`${r}/${m}/${field}`).set('lose-status');
+    }
+
+    function handleWin(r, m, p, name) {
+        if(!name || name.includes("Player")) return alert("Please enter a valid player name first!");
+        
+        // Mark as winner
+        const field = p === 'p1' ? 's1' : 's2';
+        treeRef.child(`${r}/${m}/${field}`).set('win-status');
+
+        // Logic for next round
+        treeRef.once('value', s => {
+            const allRounds = s.val();
+            if(r + 1 < allRounds.length) {
+                const nextMatchIdx = Math.floor(m / 2);
+                const nextSlot = (m % 2 === 0) ? 'p1' : 'p2';
+                treeRef.child(`${r+1}/${nextMatchIdx}/${nextSlot}`).set(name);
+            } else {
+                alert("🏆 TOURNAMENT WINNER: " + name);
             }
         });
     }
