@@ -2,107 +2,148 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Player Dashboard - Sodium</title>
+    <title>Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary: #00d2ff; --bg: #050a12; --card: #101926; }
-        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        body { background: #0b1e36; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; margin:0; }
         
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: var(--card); border-radius: 15px; margin-bottom: 30px; }
+        /* Stats Header */
+        .header { display: flex; justify-content: space-between; align-items: center; background: #162a47; padding: 15px 30px; border-bottom: 2px solid #00d2ff; }
+        .stats-badge { background: #0f213a; padding: 5px 15px; border-radius: 20px; border: 1px solid #2a4a75; margin-left: 10px; }
+
+        /* Tournament Tree Container */
+        .tree-container { display: flex; overflow-x: auto; padding: 20px 0; gap: 30px; min-height: 300px; }
+        .round-column { min-width: 250px; display: flex; flex-direction: column; gap: 20px; }
+        .round-title { text-align: center; color: #ffd32a; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
         
-        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; max-width: 1000px; margin: 0 auto 40px; }
-        .stat-card { background: var(--card); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #1e2d41; transition: 0.3s; }
-        .stat-card:hover { transform: translateY(-10px); border-color: var(--primary); }
-        .stat-card i { font-size: 35px; color: var(--primary); margin-bottom: 15px; }
-        .stat-card h2 { font-size: 32px; margin: 0; }
-        .stat-label { color: #8a99af; font-size: 14px; text-transform: uppercase; margin-top: 5px; }
+        /* Match Card Style */
+        .match-card { background: #162a47; padding: 15px; border-radius: 8px; border-left: 4px solid #2a4a75; position: relative; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .match-card:hover { transform: translateY(-3px); border-color: #00d2ff; }
+        .active-match { border-color: #2ed573; box-shadow: 0 0 10px rgba(46, 213, 115, 0.2); }
+        .p-name { font-size: 15px; font-weight: bold; display: flex; justify-content: space-between; }
+        .vs { text-align: center; font-size: 12px; color: #777; margin: 5px 0; }
+        .btn-play { width: 100%; margin-top: 10px; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .play { background: #00d2ff; color: #000; }
+        .watch { background: #2f3640; color: #fff; border: 1px solid #555; }
 
-        .bracket-view { background: rgba(16,25,38,0.8); padding: 40px; border-radius: 20px; overflow-x: auto; border: 1px solid #1e2d41; }
-        .bracket-wrapper { display: flex; gap: 50px; }
-        .round-col { display: flex; flex-direction: column; justify-content: space-around; min-width: 200px; }
-        .m-box { background: #1c2c3e; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #34495e; }
-        .p-name { padding: 5px 0; border-bottom: 1px solid #2a3a4d; font-size: 15px; }
-        .p-name:last-child { border-bottom: none; }
-
-        .win-status { color: #2ed573; font-weight: bold; }
-        .lose-status { text-decoration: line-through; color: #5d6d7e; }
+        /* Leaderboard */
+        .leaderboard-sec { max-width: 800px; margin: 40px auto; background: #162a47; padding: 20px; border-radius: 10px; border: 1px solid #2a4a75; }
+        .lb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #2a4a75; align-items: center; }
+        .rank-num { width: 30px; font-weight: bold; }
+        .top-1 { color: #ffd32a; font-size: 1.2em; } /* Gold */
+        .top-2 { color: #dcdde1; font-size: 1.1em; } /* Silver */
+        .top-3 { color: #e1b12c; font-size: 1.1em; } /* Bronze */
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div>
-        <h1 style="margin:0;">Dashboard</h1>
-        <p style="margin:0; color:var(--primary);">Welcome back, <span id="displayUser">...</span></p>
-    </div>
-    <button onclick="logout()" style="background:#ff4757; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;">Logout</button>
-</div>
-
-<div class="stats-row">
-    <div class="stat-card">
-        <i class="fas fa-play-circle"></i>
-        <h2 id="totalM">0</h2>
-        <div class="stat-label">Total Matches</div>
-    </div>
-    <div class="stat-card">
-        <i class="fas fa-medal" style="color: #ffca28;"></i>
-        <h2 id="wins">0</h2>
-        <div class="stat-label">Wins</div>
-    </div>
-    <div class="stat-card">
-        <i class="fas fa-skull" style="color: #ff4757;"></i>
-        <h2 id="losses">0</h2>
-        <div class="stat-label">Losses</div>
-    </div>
-</div>
-
-<div class="bracket-view">
-    <h2 style="text-align:center; margin-bottom:30px;"><i class="fas fa-sitemap"></i> Live Tournament Bracket</h2>
-    <div class="bracket-wrapper" id="player-bracket">
+    <div class="header">
+        <div>
+            <h2 style="margin:0; display:inline;">Sodium Chess</h2>
+            <span class="stats-badge">Wins: <span id="myWins">0</span></span>
         </div>
-</div>
+        <div>
+            <span id="welcome">Loading...</span>
+            <button onclick="localStorage.clear(); location.href='index.html'" style="margin-left:15px; background:#ff4757; color:white; border:none; padding:5px 15px; border-radius:4px; cursor:pointer;">Logout</button>
+        </div>
+    </div>
+
+    <h3 style="margin: 20px 20px 5px 20px; color:#00d2ff;">Tournament Bracket (Live)</h3>
+    <div class="tree-container" id="bracket-root">
+        </div>
+
+    <div class="leaderboard-sec">
+        <h3 style="text-align:center; margin-top:0; color:#ffd32a;">🏆 Champions Leaderboard</h3>
+        <div id="lb-list">Loading ranking...</div>
+    </div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    
     const me = localStorage.getItem("username");
-    if(!me) location.href = 'index.html';
-    document.getElementById('displayUser').innerText = me;
+    
+    if(!me) location.href = "index.html";
+    document.getElementById('welcome').innerText = me;
 
-    // 1. Fetch Stats
-    db.ref('users/' + me + '/stats').on('value', snap => {
-        const s = snap.val() || {wins: 0, total: 0};
-        document.getElementById('wins').innerText = s.wins;
-        document.getElementById('totalM').innerText = s.total;
-        document.getElementById('losses').innerText = s.total - s.wins;
+    // --- 1. Stats Logic ---
+    db.ref('users/'+me+'/stats').on('value', snap => {
+        const s = snap.val() || {wins:0};
+        document.getElementById('myWins').innerText = s.wins;
     });
 
-    // 2. Fetch Bracket
-    db.ref('tournament_tree').on('value', snap => {
-        const root = document.getElementById('player-bracket');
+    // --- 2. Visual Bracket Logic ---
+    db.ref('matches').on('value', snap => {
+        const root = document.getElementById('bracket-root');
         root.innerHTML = "";
         const data = snap.val();
-        if(!data) return root.innerHTML = "<p style='width:100%; text-align:center;'>Tournament hasn't started yet.</p>";
+        
+        if(!data) { root.innerHTML = "<p style='padding:20px'>No active tournament.</p>"; return; }
 
-        data.forEach(round => {
-            const col = document.createElement('div');
-            col.className = 'round-col';
-            round.forEach(m => {
-                col.innerHTML += `
-                <div class="m-box">
-                    <div class="p-name ${m.s1}">${m.p1 || "---"}</div>
-                    <div class="p-name ${m.s2}">${m.p2 || "---"}</div>
-                </div>`;
-            });
-            root.appendChild(col);
+        // Group matches by Round
+        const rounds = {};
+        const order = ["Round 1", "Quarter Final", "Semi Final", "Final"]; // Display Order
+
+        Object.keys(data).forEach(k => {
+            const m = data[k];
+            const rName = m.round || "Round 1";
+            if(!rounds[rName]) rounds[rName] = [];
+            rounds[rName].push({key: k, ...m});
+        });
+
+        // Render Columns
+        order.forEach(rName => {
+            if(rounds[rName]) {
+                let html = `<div class="round-column"><div class="round-title">${rName}</div>`;
+                
+                rounds[rName].forEach(m => {
+                    const isMe = (m.p1 === me || m.p2 === me);
+                    html += `
+                        <div class="match-card ${isMe ? 'active-match' : ''}">
+                            <div class="p-name">${m.p1}</div>
+                            <div class="vs">VS</div>
+                            <div class="p-name">${m.p2}</div>
+                            <button class="btn-play ${isMe ? 'play' : 'watch'}" onclick="location.href='game.html?id=${m.key}'">
+                                ${isMe ? '▶ PLAY MATCH' : '👁 WATCH'}
+                            </button>
+                        </div>`;
+                });
+                
+                html += `</div>`; // End column
+                root.innerHTML += html;
+            }
         });
     });
 
-    function logout() { localStorage.clear(); location.href='index.html'; }
+    // --- 3. Leaderboard Logic (Top Wins) ---
+    db.ref('users').on('value', snap => {
+        const users = [];
+        snap.forEach(c => {
+            const u = c.val();
+            if(u.role !== 'admin') users.push({name: u.u, wins: u.stats.wins || 0});
+        });
+
+        // Sort Highest Wins First
+        users.sort((a,b) => b.wins - a.wins);
+
+        const list = document.getElementById('lb-list');
+        list.innerHTML = "";
+        
+        users.slice(0, 10).forEach((u, i) => {
+            let rankClass = "";
+            let medal = "";
+            if(i===0) { rankClass="top-1"; medal="🥇"; }
+            else if(i===1) { rankClass="top-2"; medal="🥈"; }
+            else if(i===2) { rankClass="top-3"; medal="🥉"; }
+
+            list.innerHTML += `
+                <div class="lb-row">
+                    <span class="${rankClass}"><span class="rank-num">#${i+1}</span> ${medal} ${u.name}</span>
+                    <span style="color:#00d2ff; font-weight:bold;">${u.wins} Wins</span>
+                </div>`;
+        });
+    });
 </script>
 </body>
 </html>
