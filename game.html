@@ -2,7 +2,7 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Fixed Chess Pro</title>
+    <title>Match Live - Sodium Chess</title>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
@@ -10,179 +10,119 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #0f3460; color: white; text-align: center; font-family: sans-serif; }
-        #board { width: 400px; margin: 20px auto; border-radius: 8px; border: 5px solid #16213e; }
-        .clocks { display: flex; justify-content: center; gap: 20px; margin-bottom: 10px; }
-        .clock { background: #16213e; padding: 10px; border-radius: 5px; font-size: 20px; width: 120px; border: 2px solid transparent; }
-        .active-clock { border-color: #e94560; box-shadow: 0 0 10px #e94560; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-        .modal { background: #1a1a2e; padding: 30px; border-radius: 15px; border: 2px solid #e94560; max-width: 300px; }
+        body { background: #0f3460; color: white; text-align: center; font-family: sans-serif; margin: 0; }
+        #board { width: 360px; margin: 10px auto; border: 5px solid #16213e; border-radius: 10px; }
+        .clocks { display: flex; justify-content: center; gap: 15px; margin: 15px 0; }
+        .clock { background: #16213e; padding: 10px; width: 100px; border-radius: 8px; font-size: 22px; border: 2px solid transparent; }
+        .active-clock { border-color: #e94560; background: #1a1a2e; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 999; }
+        .modal { background: #16213e; padding: 30px; border-radius: 15px; border: 2px solid #e94560; }
+        button { background: #e94560; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer; }
         .hidden { display: none !important; }
-        button { padding: 10px 20px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 5px; font-weight: bold; margin-top: 15px;}
     </style>
 </head>
 <body>
-
-    <div id="end-screen" class="overlay hidden">
+    <div id="wait-screen" class="overlay">
         <div class="modal">
-            <h2 id="end-title">Game Over</h2>
-            <p id="end-reason"></p>
-            <button onclick="window.history.back()">Back to Lobby</button>
+            <h2 id="wait-text">Waiting for Players...</h2>
+            <button id="ready-btn" onclick="setReady()">I'm Ready</button>
         </div>
     </div>
 
-    <div id="setup-screen" class="overlay">
+    <div id="end-screen" class="overlay hidden">
         <div class="modal">
-            <h2>Match Setup</h2>
-            <div id="admin-controls" class="hidden">
-                <button onclick="setMode(60)">Bullet (1m)</button>
-                <button onclick="setMode(180)">Blitz (3m)</button>
-                <button onclick="setMode(600)">Rapid (10m)</button>
-            </div>
-            <p id="waiting-msg">Waiting for admin and players...</p>
-            <button id="ready-btn" class="hidden" onclick="playerReady()">Ready</button>
+            <h1 id="win-msg">Match Ended</h1>
+            <p id="reason">Reason</p>
+            <button onclick="location.href='player_dashboard.html'">ড্যাশবোর্ড-এ ফিরুন</button>
         </div>
     </div>
 
     <div class="clocks">
-        <div id="clock-w" class="clock">White: --:--</div>
-        <div id="clock-b" class="clock">Black: --:--</div>
+        <div id="clock-w" class="clock">00:00</div>
+        <div id="clock-b" class="clock">00:00</div>
     </div>
-    <h3 id="status">Connecting...</h3>
     <div id="board"></div>
+    <h3 id="status">প্লেয়ার কানেক্ট হচ্ছে...</h3>
 
 <script>
     const firebaseConfig = { databaseURL: "https://sodium-chess-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const mid = new URLSearchParams(window.location.search).get('id');
+    const me = localStorage.getItem("username");
+    
+    let game = new Chess(), board = null, myCol = null, isEnded = false;
+    const lRef = db.ref('live_matches/'+mid);
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const matchId = urlParams.get('id');
-    const myName = localStorage.getItem("playerName");
-    const myRole = localStorage.getItem("userRole");
-
-    let board = null;
-    let game = new Chess();
-    let myColor = null; 
-    let gameEnded = false;
-    const liveRef = db.ref('live_matches/' + matchId);
-
-    function setMode(sec) {
-        liveRef.update({ timeLimit: sec, timeLeftW: sec, timeLeftB: sec, modeSet: true, status: 'playing' });
+    function setReady() {
+        if(!myCol) return alert("আপনি দর্শক হিসেবে দেখছেন।");
+        if(myCol === 'w') lRef.update({wR:true}); else lRef.update({bR:true});
+        document.getElementById('ready-btn').innerText = "Waiting...";
     }
 
-    function playerReady() {
-        if (myColor === 'w') liveRef.update({ p1Ready: true });
-        if (myColor === 'b') liveRef.update({ p2Ready: true });
-        document.getElementById('ready-btn').style.display = 'none';
+    function onDragStart(s, p) {
+        if(isEnded || game.game_over() || !myCol || (game.turn() !== myCol) || (p.search(myCol) === -1)) return false;
     }
 
-    function onDragStart (source, piece) {
-        if (gameEnded || game.game_over() || myRole === 'admin') return false;
-        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
-        if ((game.turn() === 'w' && myColor !== 'w') || (game.turn() === 'b' && myColor !== 'b')) return false;
+    function onDrop(s, t) {
+        let move = game.move({from:s, to:t, promotion:'q'});
+        if (!move) return 'snapback';
+        lRef.update({f: game.fen(), turn: game.turn()});
+        if(game.in_checkmate()) declareWinner(myCol === 'w' ? "White" : "Black", "Checkmate");
     }
 
-    function onDrop (source, target) {
-        let move = game.move({ from: source, to: target, promotion: 'q' });
-        if (move === null) return 'snapback';
-        
-        liveRef.update({ fen: game.fen(), turn: game.turn() });
-        checkGameState();
-    }
-
-    function checkGameState() {
-        if (game.in_checkmate()) {
-            let winner = game.turn() === 'w' ? "Black" : "White";
-            liveRef.update({ status: 'ended', winner: winner, reason: 'Checkmate' });
-        } else if (game.in_draw() || game.in_stalemate()) {
-            liveRef.update({ status: 'ended', winner: 'Draw', reason: 'Draw/Stalemate' });
-        }
+    function declareWinner(w, r) {
+        if(isEnded) return;
+        lRef.update({status:'ended', winner:w, reason:r});
+        db.ref('users/'+w.toLowerCase()+'/stats/wins').transaction(c => (c||0)+1);
     }
 
     function startTimer() {
-        if (window.timerId) return;
-        window.timerId = setInterval(() => {
-            if (gameEnded) return;
-            liveRef.once('value', snap => {
-                let d = snap.val();
-                if (!d || d.status !== 'playing') return;
-
-                if (game.turn() === 'w') {
+        if(window.gameTimer) return;
+        window.gameTimer = setInterval(() => {
+            lRef.once('value', snap => {
+                const d = snap.val();
+                if(!d || d.status !== 'playing' || isEnded) return;
+                if(game.turn() === 'w') {
                     let t = d.timeLeftW - 1;
-                    if (t <= 0) endGame("Black", "Time Expired");
-                    else if (myColor === 'w') liveRef.update({ timeLeftW: t });
+                    if(t<=0) declareWinner("Black", "Time Expired"); else if(myCol === 'w') lRef.update({timeLeftW:t});
                 } else {
                     let t = d.timeLeftB - 1;
-                    if (t <= 0) endGame("White", "Time Expired");
-                    else if (myColor === 'b') liveRef.update({ timeLeftB: t });
+                    if(t<=0) declareWinner("White", "Time Expired"); else if(myCol === 'b') lRef.update({timeLeftB:t});
                 }
             });
         }, 1000);
     }
 
-    function endGame(winner, reason) {
-        if (gameEnded) return;
-        liveRef.update({ status: 'ended', winner: winner, reason: reason });
-    }
-
-    liveRef.on('value', snap => {
-        const data = snap.val();
-        if (!data) return;
-
-        // গেম শেষ চেক
-        if (data.status === 'ended') {
-            gameEnded = true;
+    lRef.on('value', snap => {
+        const d = snap.val(); if(!d) return;
+        if(d.wR && d.bR && d.status === 'waiting') lRef.update({status:'playing'});
+        if(d.status === 'playing') { document.getElementById('wait-screen').classList.add('hidden'); startTimer(); }
+        if(d.status === 'ended') {
+            isEnded = true; clearInterval(window.gameTimer);
             document.getElementById('end-screen').classList.remove('hidden');
-            document.getElementById('end-title').innerText = data.winner === 'Draw' ? "Match Draw!" : data.winner + " Wins!";
-            document.getElementById('end-reason').innerText = "Reason: " + data.reason;
-            clearInterval(window.timerId);
+            document.getElementById('win-msg').innerText = d.winner + " Wins!";
+            document.getElementById('reason').innerText = d.reason;
             return;
         }
-
-        if (data.modeSet && myRole !== 'admin') {
-            document.getElementById('waiting-msg').innerText = "Mode: " + (data.timeLimit/60) + "m";
-            document.getElementById('ready-btn').classList.remove('hidden');
-        } else if (myRole === 'admin' && !data.modeSet) {
-            document.getElementById('admin-controls').classList.remove('hidden');
-        }
-
-        if (data.p1Ready && data.p2Ready) {
-            document.getElementById('setup-screen').classList.add('hidden');
-            startTimer();
-        }
-
-        if (data.fen) {
-            game.load(data.fen);
-            board.position(data.fen);
-        }
-
-        document.getElementById('clock-w').innerText = "White: " + formatTime(data.timeLeftW || 0);
-        document.getElementById('clock-b').innerText = "Black: " + formatTime(data.timeLeftB || 0);
-        document.getElementById('clock-w').className = game.turn() === 'w' ? "clock active-clock" : "clock";
-        document.getElementById('clock-b').className = game.turn() === 'b' ? "clock active-clock" : "clock";
-        document.getElementById('status').innerText = game.turn() === 'w' ? "White's Turn" : "Black's Turn";
+        if(d.f && d.f !== game.fen()) { game.load(d.f); board.position(d.f); }
+        document.getElementById('clock-w').innerText = format(d.timeLeftW);
+        document.getElementById('clock-b').innerText = format(d.timeLeftB);
+        document.getElementById('clock-w').className = game.turn()==='w'?"clock active-clock":"clock";
+        document.getElementById('clock-b').className = game.turn()==='b'?"clock active-clock":"clock";
+        document.getElementById('status').innerText = game.turn()==='w'?"White's Turn":"Black's Turn";
     });
 
-    function formatTime(s) {
-        let m = Math.floor(s / 60);
-        let sec = s % 60;
-        return (m < 10 ? "0" : "") + m + ":" + (sec < 10 ? "0" : "") + sec;
-    }
+    function format(s) { let m=Math.floor(s/60); let sec=s%60; return (m<10?"0":"")+m+":"+(sec<10?"0":"")+sec; }
 
-    // বোর্ড ইনিশিয়ালাইজেশন
-    db.ref('matches/' + matchId).once('value', snap => {
+    db.ref('matches/'+mid).once('value', snap => {
         const m = snap.val();
-        if (m.p1 === myName) myColor = 'w'; else if (m.p2 === myName) myColor = 'b';
+        if(m.p1 === me) myCol='w'; else if(m.p2 === me) myCol='b';
         board = Chessboard('board', {
-            draggable: true,
-            position: 'start',
-            orientation: (myColor === 'b') ? 'black' : 'white',
-            onDragStart: onDragStart,
-            onDrop: onDrop,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            draggable: true, position: 'start', orientation: (myCol==='b'?'black':'white'),
+            onDragStart: onDragStart, onDrop: onDrop, pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
         });
+        if(!myCol) document.getElementById('ready-btn').classList.add('hidden');
     });
 </script>
 </body>
