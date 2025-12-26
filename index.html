@@ -7,27 +7,29 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f3460; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background: #16213e; padding: 30px; border-radius: 15px; width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-top: 5px solid #e94560; }
-        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; outline: none; box-sizing: border-box; }
-        input { background: #1a1a2e; color: white; border: 1px solid #0f3460; }
-        button { background: #e94560; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #ff4d6d; }
-        .toggle-link { color: #24a0ed; cursor: pointer; font-size: 14px; text-decoration: underline; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b1e36; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: #162a47; padding: 40px; border-radius: 15px; width: 350px; box-shadow: 0 0 20px rgba(0,255,255,0.1); border-top: 5px solid #00d2ff; }
+        h2 { text-align: center; margin-bottom: 20px; color: #00d2ff; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: none; outline: none; box-sizing: border-box; }
+        input { background: #0f213a; color: white; border: 1px solid #2a4a75; }
+        input:focus { border-color: #00d2ff; }
+        button { background: #00d2ff; color: #0b1e36; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 16px; }
+        button:hover { background: #00a6c9; }
+        .toggle-link { color: #00d2ff; cursor: pointer; font-size: 14px; text-decoration: underline; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2 id="title" style="text-align:center;">লগইন করুন</h2>
+    <h2 id="title">User Login</h2>
     <div id="signup-fields" class="hidden">
-        <input type="text" id="mobile" placeholder="মোবাইল নাম্বার">
-        <input type="password" id="admin-secret" placeholder="অ্যাডমিন পাস (অ্যাডমিনদের জন্য)">
+        <input type="text" id="mobile" placeholder="Mobile Number">
+        <input type="password" id="admin-secret" placeholder="Admin Code (Optional)">
     </div>
-    <input type="text" id="user" placeholder="ইউজারনেম">
-    <input type="password" id="pass" placeholder="পাসওয়ার্ড">
-    <button onclick="auth()">চালিয়ে যান</button>
-    <p style="text-align:center; font-size: 14px;"><span id="toggle-text">নতুন অ্যাকাউন্ট?</span> <span class="toggle-link" onclick="toggle()">সাইনআপ করুন</span></p>
+    <input type="text" id="user" placeholder="Username">
+    <input type="password" id="pass" placeholder="Password">
+    <button onclick="auth()">Submit</button>
+    <p style="text-align:center; font-size: 14px;"><span id="toggle-text">New here?</span> <span class="toggle-link" onclick="toggle()">Create Account</span></p>
 </div>
 
 <script>
@@ -38,9 +40,9 @@
 
     function toggle() {
         isSignup = !isSignup;
-        document.getElementById('title').innerText = isSignup ? "নতুন অ্যাকাউন্ট" : "লগইন করুন";
+        document.getElementById('title').innerText = isSignup ? "Create Account" : "User Login";
         document.getElementById('signup-fields').classList.toggle('hidden', !isSignup);
-        document.getElementById('toggle-text').innerText = isSignup ? "আগের অ্যাকাউন্ট আছে?" : "নতুন অ্যাকাউন্ট?";
+        document.getElementById('toggle-text').innerText = isSignup ? "Already have account?" : "New here?";
     }
 
     function auth() {
@@ -49,14 +51,14 @@
         const m = document.getElementById('mobile').value.trim();
         const s = document.getElementById('admin-secret').value.trim();
 
-        if(!u || !p) return alert("ইউজারনেম এবং পাসওয়ার্ড দিন");
+        if(!u || !p) return alert("Please fill username and password");
 
         if(isSignup) {
             db.ref('users/'+u).once('value', snap => {
-                if(snap.exists()) return alert("এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত!");
+                if(snap.exists()) return alert("Username taken!");
                 let role = (s === "#Sodium#595220#") ? "admin" : "player";
                 db.ref('users/'+u).set({u, p, m, role, stats:{wins:0, total:0}}).then(() => {
-                    alert("অ্যাকাউন্ট তৈরি সফল! এখন লগইন করুন।");
+                    alert("Account Created! Login now.");
                     location.reload();
                 });
             });
@@ -67,7 +69,7 @@
                     localStorage.setItem("username", u);
                     localStorage.setItem("userRole", d.role);
                     location.href = (d.role === "admin") ? "admin.html" : "player.html";
-                } else alert("ভুল ইউজারনেম বা পাসওয়ার্ড!");
+                } else alert("Invalid Credentials!");
             });
         }
     }
