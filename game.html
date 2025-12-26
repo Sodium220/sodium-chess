@@ -33,7 +33,7 @@
         <div class="modal">
             <h1 id="win-msg">Match Ended</h1>
             <p id="reason">Reason</p>
-            <button onclick="location.href='player_dashboard.html'">ড্যাশবোর্ড-এ ফিরুন</button>
+            <button onclick="location.href='player.html'">ড্যাশবোর্ড-এ ফিরুন</button>
         </div>
     </div>
 
@@ -68,7 +68,7 @@
         let move = game.move({from:s, to:t, promotion:'q'});
         if (!move) return 'snapback';
         lRef.update({f: game.fen(), turn: game.turn()});
-        if(game.in_checkmate()) declareWinner(myCol === 'w' ? "White" : "Black", "Checkmate");
+        if(game.game_over()) declareWinner(myCol === 'w' ? "White" : "Black", "Checkmate");
     }
 
     function declareWinner(w, r) {
